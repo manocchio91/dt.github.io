@@ -61,6 +61,19 @@ Le password degli utenti di prova sono casuali, non vengono stampate né salvate
 | F7 | Avviso: modifica probabilità vs registrazione ex-post | rifiutata vs accettata con `reviewed_by` | |
 | F8 | Audit `forecast_*` | visibile all’admin, non al viewer | |
 
+## Casi W — acquisizione meteo (migrazione 20261024000007, funzione open-meteo-ingest)
+
+| # | Caso | Atteso | Esito |
+|---|---|---|---|
+| W1 | Editor crea una località; viewer la legge; esterno no | come da RLS | |
+| W2 | Client (anche admin) inserisce `weather_observations` con fonte `open_meteo` o un `weather_fetch_runs` | rifiutato | |
+| W3 | Client chiama `weather_begin_fetch` | rifiutato (solo service role) | |
+| W4 | Aggiornamento manuale da editor via funzione | 200, punti registrati, cella e modello salvati | |
+| W5 | Secondo aggiornamento manuale entro 10 minuti | 429 | |
+| W6 | Job pianificato (pg_cron) dopo 3 ore | nuova emissione; le precedenti restano | |
+| W7 | Open-Meteo irraggiungibile (URL di test errato) | acquisizione in errore, dati precedenti intatti | |
+| W8 | Pannello su GitHub Pages con utente reale | dati, fonte, cella, avviso; “Aggiorna dati” solo per editor | |
+
 ## Criteri di uscita
 
 - Tutti i casi con esito atteso e evidenza archiviata.

@@ -419,6 +419,52 @@ await check('F8', 'Previsioni: audit visibile solo all’admin', async () => {
   return `${a.data.length} righe per l’admin, 0 per il viewer`;
 });
 
+// ------------------------------------------------------------ W meteo (Open-Meteo → Supabase)
+let wLoc;
+await check('W1', 'Meteo: località creata dall’editor, letta dal viewer, invisibile all’esterno', async () => {
+  const r = await E.client.from('weather_locations').insert({ organization_id: orgA, project_id: proj.project.id, name: `Verifica ${run}`, scope: 'agricultural', latitude: 41.8, longitude: 14.92 }).select('id').single();
+  expect(!r.error, r.error?.message);
+  wLoc = r.data.id;
+  const v = await V.client.from('weather_locations').select('id').eq('id', wLoc);
+  const o = await O.client.from('weather_locations').select('id').eq('id', wLoc);
+  expect((v.data ?? []).length === 1 && (o.data ?? []).length === 0, 'visibilità errata');
+  return 'RLS rispettata';
+});
+
+await check('W2', 'Meteo: nessun client si spaccia per Open-Meteo', async () => {
+  const obs = await A.client.from('weather_observations').insert({ organization_id: orgA, location_id: wLoc, observed_at: new Date().toISOString(), variable: 'temperature_2m', value: 20, unit: '°C', source: 'open_meteo' });
+  const runRow = await A.client.from('weather_fetch_runs').insert({ organization_id: orgA, location_id: wLoc, trigger: 'manuale', model_requested: 'best_match', request_hash: 'a'.repeat(64) });
+  expect(!!obs.error && !!runRow.error, 'inserimento con fonte Open-Meteo accettato da un client');
+  return 'rifiutato';
+});
+
+await check('W3', 'Meteo: funzioni di registrazione riservate al service role', async () => {
+  const r = await E.client.rpc('weather_begin_fetch', { p_location: wLoc, p_request_hash: 'b'.repeat(64), p_trigger: 'manuale', p_model: 'best_match' });
+  expect(!!r.error, 'weather_begin_fetch eseguibile da un utente');
+  return r.error.message;
+});
+
+const wInvoke = await E.client.functions.invoke('open-meteo-ingest', { body: { location_id: wLoc } });
+const wStatus = wInvoke.error?.context?.status ?? (wInvoke.error ? 0 : 200);
+if (wStatus === 404 || wStatus === 0) {
+  record('W4', 'Meteo: aggiornamento manuale via Edge Function', 'skip', `funzione open-meteo-ingest non pubblicata o non raggiungibile (stato ${wStatus})`);
+  record('W5', 'Meteo: limite di frequenza dell’aggiornamento manuale', 'skip', 'richiede la funzione pubblicata');
+} else {
+  await check('W4', 'Meteo: aggiornamento manuale via Edge Function (Open-Meteo reale)', async () => {
+    expect(wStatus === 200, `stato ${wStatus}`);
+    const runs = await V.client.from('weather_fetch_runs').select('status, points_count, response_grid_latitude, model_requested').eq('location_id', wLoc);
+    const ok = (runs.data ?? []).find((x) => x.status === 'completata');
+    expect(ok && ok.points_count >= 72 && ok.response_grid_latitude, 'acquisizione non registrata');
+    return `${ok.points_count} ore registrate, cella ${ok.response_grid_latitude}`;
+  });
+  await check('W5', 'Meteo: secondo aggiornamento manuale entro 10 minuti rifiutato', async () => {
+    const again = await E.client.functions.invoke('open-meteo-ingest', { body: { location_id: wLoc } });
+    expect(again.error?.context?.status === 429, `stato ${again.error?.context?.status ?? 200}`);
+    return '429';
+  });
+}
+record('W6', 'Meteo: job pg_cron ogni 3 ore', 'skip', 'manuale: verificare cron.job_run_details e una nuova emissione dopo 3 ore (docs/16)');
+
 record('M12', 'Offline su smartphone e sincronizzazione', 'skip', 'manuale (docs/14)');
 record('M14', 'Pulizia a fine conservazione pianificata', 'skip', 'manuale: richiede pg_cron e segreto (docs/13)');
 record('S8', 'Magic link via email', 'skip', 'manuale: verificare la ricezione della mail di test');

@@ -78,6 +78,10 @@ In M0 sono registrati solo adapter `maturity: 'demo-illustrative'`. Il registro 
 | Vitest | test di dominio e componenti |
 | Grafici | SVG accessibile scritto a mano (tabella equivalente sempre presente) |
 
+## Acquisizione meteo (F04)
+
+Open-Meteo è interrogato dal server: Edge Function `open-meteo-ingest` invocata da `pg_cron` ogni 3 ore (o manualmente da un editor), registrazione nelle tabelle `weather_*` con RLS; il frontend su GitHub Pages legge soltanto. Dettagli in [16-open-meteo-supabase.md](16-open-meteo-supabase.md).
+
 ## Servizio di previsione (F31)
 
 `services/forecasting` è un servizio Python separato (FastAPI, CPU) che esegue Timestral. Il browser lo raggiunge solo tramite un proxy autenticato (`VITE_FORECAST_URL`); senza servizio l’interfaccia mostra "Motore Timestral non configurato". Dettagli in [15-previsioni-timestral.md](15-previsioni-timestral.md).
