@@ -236,7 +236,7 @@ describe('Backtest walk-forward senza leakage (dati reali di rianalisi)', () => 
 
 describe('Riepilogo del backtest usato dall’interfaccia', () => {
   it('backtest_summary.json è riproducibile dal codice (caso urbano)', async () => {
-    const { default: summary } = await import('./data/backtest_summary.json');
+    const { default: summary } = await import('./data/backtest_summary.json', { with: { type: 'json' } });
     const { BACKTEST_CASES, caseConfig } = await import('./cases');
     const c = BACKTEST_CASES.find((x) => x.id === 'urbano-temperatura-24h')!;
     const r = await runBacktest(caseConfig(c), new SeasonalNaiveAdapter());
@@ -244,5 +244,47 @@ describe('Riepilogo del backtest usato dall’interfaccia', () => {
     expect(stored).toEqual(JSON.parse(JSON.stringify(r.metrics)));
     // Timestral non eseguito: dichiarato, mai inventato
     expect(summary.cases.every((x) => x.results.every((m) => !m.adapter.startsWith('mistralai/')) || x.notRun.length === 0)).toBe(true);
+  });
+});
+
+describe('Registro della previsione, soglie agronomiche ed ex-post', () => {
+  it('soglia di umidità da capacità di campo e appassimento; dati mancanti → non determinabile', async () => {
+    const { soilMoistureThreshold } = await import('./record');
+    expect(soilMoistureThreshold(0.25, 0.12)).toBeCloseTo(0.159, 3);
+    expect(soilMoistureThreshold(0.25, 0.12, 0.5)).toBeCloseTo(0.185, 3);
+    expect(soilMoistureThreshold(null, 0.12)).toBeNull();
+    expect(soilMoistureThreshold(0.1, 0.12)).toBeNull();
+  });
+
+  it('record: banda scelta, soglia valutata dai quantili, lineage; ex-post con MAE e copertura', async () => {
+    const { buildForecastRecord, expostComparison, evaluateThreshold } = await import('./record');
+    const { forecastLineage } = await import('./datasets');
+    const s = URBAN_DATASET.series('temperatura_aria');
+    const cfg = { series: s, horizon: 24, step: 24, minContext: 336, maxContext: 672 };
+    const req = requestAtOrigin(cfg, 2000);
+    const r = await new SeasonalNaiveAdapter().forecast(req);
+    const thr = { value: 30, direction: 'sopra' as const, minProbability: 0.3, expertRole: 'tecnico comunale', rationale: 'prova di soglia' };
+    const lin = forecastLineage(URBAN_DATASET, req.targets[0]!, r.model, { covariates: [], horizon: 24, startedBy: 'test', executedAt: '2026-10-24T00:00:00Z' });
+    const rec = buildForecastRecord({ id: 'r1', now: new Date('2026-10-24T00:00:00Z'), context: 'urbano', result: r, variable: 'temperatura_aria', unit: '°C', band: '90', thresholds: [thr], lineage: lin, note: 'n' });
+    expect(rec.issuedAt).toBe(new Date(Date.parse(s.timestamps[1999]!)).toISOString());
+    expect(rec.lower.every((l, i) => l <= rec.median[i]! && rec.median[i]! <= rec.upper[i]!)).toBe(true);
+    expect(rec.lower[0]).toBe(r.quantiles[0]![0]![1]);
+    expect(rec.thresholds[0]!.flagged).toBe(evaluateThreshold(r, thr).flagged);
+    expect(rec.lineage.dataClass).toBe('STIMATO_DA_MODELLO');
+    const cmp = expostComparison(rec, s.values.slice(2000, 2024), 'rianalisi', new Date());
+    expect(cmp.points).toBe(24);
+    expect(cmp.mae).toBeGreaterThanOrEqual(0);
+    expect(cmp.insideBand).toBeGreaterThanOrEqual(0);
+    expect(expostComparison(rec, Array(24).fill(null), 'x', new Date())).toMatchObject({ mae: null, insideBand: null, points: 0 });
+  });
+
+  it('il record entra nel progetto e nell’export con hash verificabile', async () => {
+    const { seedCampobasso } = await import('../seeds/seeds');
+    const { exportProject, importProject } = await import('../project/bundle');
+    const b = seedCampobasso(new Date('2026-10-24T08:00:00Z'));
+    const withF = { ...b, forecasts: [{ id: 'f', variable: 'temperatura_aria' } as never] };
+    const back = importProject(JSON.stringify(exportProject(withF, new Date())));
+    expect(back.hashOk).toBe(true);
+    expect(back.bundle!.forecasts).toHaveLength(1);
   });
 });

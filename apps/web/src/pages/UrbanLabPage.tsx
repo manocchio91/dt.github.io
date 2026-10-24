@@ -230,9 +230,14 @@ export default function UrbanLabPage() {
           <p className="text-sm text-sand-600">{bundle.project.name}</p>
           <h1 className="text-2xl font-extrabold text-petrol-900">Decision Lab urbano</h1>
         </div>
-        <Link to={`/progetti/${bundle.project.id}/confronto`} className="btn-primary">
-          Confronta e decidi →
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link to={`/progetti/${bundle.project.id}/previsioni`} className="btn-secondary">
+            Previsioni (Beta)
+          </Link>
+          <Link to={`/progetti/${bundle.project.id}/confronto`} className="btn-primary">
+            Confronta e decidi →
+          </Link>
+        </div>
       </div>
       {isDemo && <DemoRibbon />}
       <GuideBanner

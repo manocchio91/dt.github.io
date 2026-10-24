@@ -43,10 +43,14 @@ describe('Decisione umana', () => {
   });
 });
 
-describe('Registro F01–F30', () => {
-  it('contiene 30 requisiti con stato e, se operativi, evidenza', () => {
-    expect(FEATURES.map((f) => f.id)).toEqual(Array.from({ length: 30 }, (_, i) => `F${String(i + 1).padStart(2, '0')}`));
+describe('Registro F01–F31', () => {
+  it('contiene 31 requisiti con stato e, se operativi, evidenza', () => {
+    expect(FEATURES.map((f) => f.id)).toEqual(Array.from({ length: 31 }, (_, i) => `F${String(i + 1).padStart(2, '0')}`));
     for (const f of FEATURES.filter((x) => x.status === 'operativa')) expect(f.evidence.length, f.id).toBeGreaterThan(0);
     expect(FEATURES.find((f) => f.id === 'F23')!.status).toBe('roadmap');
+    const f31 = FEATURES.find((f) => f.id === 'F31')!;
+    expect(f31.status).toBe('beta');
+    expect(f31.traces).toEqual(['F04', 'F05', 'F12', 'F15', 'F17', 'F18', 'F21', 'F30']);
+    expect(f31.criterion).toMatch(/distingue una previsione da una misura/);
   });
 });

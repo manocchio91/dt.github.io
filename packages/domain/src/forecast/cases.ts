@@ -52,3 +52,6 @@ export const BACKTEST_CASES: BacktestCase[] = [
 export function caseConfig(c: BacktestCase): BacktestConfig {
   return { series: c.dataset.series(c.variable), horizon: c.horizon, step: 24, minContext: 24 * 14, maxContext: 24 * 28, alert: c.alert };
 }
+
+/** Riepilogo dell'ultimo backtest (generato da scripts/backtest.ts, verificato dai test). */
+export { default as BACKTEST_SUMMARY } from './data/backtest_summary.json' with { type: 'json' };

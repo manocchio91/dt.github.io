@@ -1,5 +1,5 @@
-import urban from './data/urban_campobasso_2025.json';
-import vineyard from './data/vineyard_molise_2025.json';
+import urban from './data/urban_campobasso_2025.json' with { type: 'json' };
+import vineyard from './data/vineyard_molise_2025.json' with { type: 'json' };
 import { missingRatio } from './validate';
 import type { TimeSeries } from './types';
 

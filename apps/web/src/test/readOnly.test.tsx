@@ -7,6 +7,7 @@ import UrbanLabPage from '../pages/UrbanLabPage';
 import ComparePage from '../pages/ComparePage';
 import VerifyPage from '../pages/VerifyPage';
 import AgriLabPage from '../pages/AgriLabPage';
+import ForecastPage from '../pages/ForecastPage';
 import { fakeAuth, fakeSession, member, remoteRepo, renderApp } from './utils';
 import type { ReactNode } from 'react';
 import type { OrgRole } from '../state/auth';
@@ -30,6 +31,8 @@ const pages: { name: string; ui: () => ReactNode; route: () => string; path: str
   { name: 'Confronto', ui: () => <ComparePage />, route: () => `/progetti/${urban.project.id}/confronto`, path: '/progetti/:id/confronto', marker: /Tabella di confronto/ },
   { name: 'Verifica', ui: () => <VerifyPage />, route: () => `/progetti/${urban.project.id}/verifica`, path: '/progetti/:id/verifica', marker: /Piano di monitoraggio/ },
   { name: 'Lab agricolo', ui: () => <AgriLabPage />, route: () => `/progetti/${agri.project.id}/agricolo`, path: '/progetti/:id/agricolo', marker: /Componenti per zona/ },
+  { name: 'Previsioni urbane', ui: () => <ForecastPage />, route: () => `/progetti/${urban.project.id}/previsioni`, path: '/progetti/:id/previsioni', marker: /Confronto con le baseline/ },
+  { name: 'Previsioni vigneto', ui: () => <ForecastPage />, route: () => `/progetti/${agri.project.id}/previsioni`, path: '/progetti/:id/previsioni', marker: /Soglie dell’agronomo/ },
 ];
 
 async function renderAs(role: OrgRole, page: (typeof pages)[number]) {

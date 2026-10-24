@@ -6,3 +6,4 @@ export * from './timestral';
 export * from './backtest';
 export * from './datasets';
 export * from './cases';
+export * from './record';
