@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
 import { ORG_ROLE_LABEL, type OrgRole } from '@mdt/domain';
 import { getSupabase } from './supabase';
+import { appUrl } from './appUrl';
 
 export type { OrgRole };
 
@@ -122,7 +123,7 @@ export function AuthProvider({ children, client = getSupabase() }: { children: R
         return data.session ? 'session' : 'confirm_email';
       },
       async sendMagicLink(email) {
-        const { error } = await need().auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + '/accesso' } });
+        const { error } = await need().auth.signInWithOtp({ email, options: { emailRedirectTo: appUrl('/accesso') } });
         if (error) throw new Error(error.message);
       },
       async signOut() {

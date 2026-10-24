@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../state/auth';
 import { Alert } from './ui';
+import { appUrl } from '../state/appUrl';
 
 interface LinkRow {
   id: string;
@@ -35,7 +36,7 @@ export function SharePanel({ projectId }: { projectId: string }) {
     setErr(null);
     const { data, error } = await client.rpc('create_shared_link', { p_project: projectId, p_days: days });
     if (error) return setErr(error.message);
-    setFresh(`${window.location.origin}/condiviso/${data as string}`);
+    setFresh(appUrl(`/condiviso/${data as string}`));
     await load();
   };
 

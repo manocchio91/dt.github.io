@@ -16,7 +16,7 @@
     "typecheck": "tsc -p packages/domain --noEmit && tsc -p apps/web --noEmit && tsc -p supabase --noEmit && tsc -p e2e --noEmit",
     "test": "vitest run",
     "ci": "npm run lint && npm run typecheck && npm run test && npm run build",
-    "e2e": "npm run build && npm run build:e2e -w @mdt/web && playwright test",
+    "e2e": "npm run build && npm run build:e2e -w @mdt/web && npm run build:pages -w @mdt/web && playwright test",
     "sync:functions": "node scripts/sync-functions.mjs"
   },
   "devDependencies": {

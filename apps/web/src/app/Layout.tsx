@@ -3,6 +3,7 @@ import { useStore, lastProjectId } from '../state/store';
 import { useAuth, ROLE_LABEL } from '../state/auth';
 import { usePreferences } from '../state/preferences';
 import { PROFILE_LABEL } from '@mdt/domain';
+import { assetUrl } from '../state/appUrl';
 
 const linkCls = ({ isActive }: { isActive: boolean }) =>
   `flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${isActive ? 'bg-petrol-700 text-white' : 'text-petrol-900 hover:bg-petrol-100'}`;
@@ -25,7 +26,7 @@ export function Layout() {
       <header className="sticky top-0 z-20 border-b border-sand-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2">
           <NavLink to="/" className="flex items-center gap-2">
-            <img src="/favicon.svg" alt="" className="size-8" />
+            <img src={assetUrl('favicon.svg')} alt="" className="size-8" />
             <span className="leading-tight">
               <span className="block text-sm font-extrabold text-petrol-900 md:text-base">Micro Digital Twin</span>
               <span className="block text-xs text-sand-600">Climate Decision Lab</span>
