@@ -17,7 +17,7 @@ select jsonb_build_object(
   'funzioni', (select jsonb_object_agg(p.oid::regprocedure::text, md5(pg_get_functiondef(p.oid)) || ' ' || coalesce(array_to_string(p.proconfig, ','), '') || case when p.prosecdef then ' SECURITY DEFINER' else '' end)
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname in ('public', 'app') and p.prokind = 'f' and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')),
-  'trigger', (select jsonb_object_agg(t.tgrelid::regclass::text || '.' || t.tgname, pg_get_triggerdef(t.oid) || ' [' || t.tgenabled || ']') from pg_trigger t
+  'trigger', (select jsonb_object_agg(t.tgrelid::regclass::text || '.' || t.tgname, pg_get_triggerdef(t.oid) || ' [' || t.tgenabled::text || ']') from pg_trigger t
       join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace where not t.tgisinternal and n.nspname in ('public', 'auth', 'storage') and (n.nspname = 'public' or t.tgname = 'on_auth_user_created')),
   'policy', (select jsonb_object_agg(schemaname || '.' || tablename || '.' || policyname, cmd || ' ' || array_to_string(roles, ',') || ' USING ' || coalesce(qual, '-') || ' CHECK ' || coalesce(with_check, '-'))
       from pg_policies where schemaname in ('public', 'storage')),
