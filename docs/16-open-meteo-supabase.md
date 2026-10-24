@@ -139,3 +139,30 @@ Aggiunti a [14-piano-test-supabase-reale.md](14-piano-test-supabase-reale.md) (W
 3. `npx supabase secrets set OPEN_METEO_CRON_SECRET=… ALLOWED_ORIGIN=https://manocchio91.github.io`;
 4. Vault + `schedule-open-meteo-ingest.sql`;
 5. `node scripts/supabase-real/verify.mjs` con le variabili d'ambiente di staging.
+
+## 11. Stato sul progetto Supabase di staging (24/10/2026)
+
+| Passo | Stato |
+| --- | --- |
+| Migrazioni 0001–0008 | **applicate** (`supabase db push --linked`); 0008 ridotta, vedi sotto |
+| Catalogo | 41 tabelle dell'app con RLS e policy, bucket `project-media` privato, trigger su `auth.users`, funzioni di servizio non eseguibili da `authenticated` |
+| Accesso anonimo | **44/44 controlli superati** (`scripts/supabase-real/anon-check.mjs`, report in `docs/reports/supabase-anon-check-2026-10-24.md`) |
+| Edge Function `open-meteo-ingest`, segreti, job pg_cron | **non pubblicati** |
+| Acquisizione reale su Supabase | **non eseguita** |
+
+Problemi aperti dal Security Advisor, non risolvibili con una migrazione perché gli oggetti sono
+di PostGIS e appartengono a `supabase_admin` (un tentativo è fallito con
+`must be owner of table spatial_ref_sys` ed è stato annullato per intero):
+
+- `public.spatial_ref_sys` senza RLS e, con i privilegi predefiniti, scrivibile da `anon` e
+  `authenticated` via API REST: un client potrebbe alterare i sistemi di riferimento usati dai
+  calcoli geometrici (nessun dato personale, ma rischio di integrità).
+- `public.st_estimatedextent` (SECURITY DEFINER) eseguibile da `anon` e `authenticated`.
+- PostGIS installato nello schema `public` (avviso).
+
+Soluzioni possibili, da decidere:
+1. **Spostare PostGIS nello schema `extensions`** finché il database è vuoto: migrazione che rimuove
+   l'estensione con le colonne geometriche, la reinstalla in `extensions` e ricrea le colonne
+   (o reset dello staging con la migrazione 0001 corretta). Risolve tutti e tre i punti.
+2. **Chiedere al supporto Supabase** la revoca dei privilegi su `spatial_ref_sys` e `st_estimatedextent`.
+3. Accettare temporaneamente il rischio sullo staging (nessun dato reale) e risolvere prima della produzione.
