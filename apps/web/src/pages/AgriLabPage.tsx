@@ -25,6 +25,8 @@ import { MapView, type MapPolygon } from '../components/MapView';
 import { Alert, DemoRibbon, Field, LevelPill, Section, Term } from '../components/ui';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { todayRome } from '../state/store';
+import { usePermissions } from '../state/permissions';
+import { GuideBanner } from '../components/guide';
 
 const num = (s: string): number | null => {
   if (s.trim() === '') return null;
@@ -56,6 +58,7 @@ export default function AgriLabPage() {
     supervisor: '',
   });
   const [decErrors, setDecErrors] = useState<string[]>([]);
+  const { canEdit } = usePermissions();
 
   const agri = bundle?.agri ?? null;
   const assessments = useMemo(
@@ -175,6 +178,16 @@ export default function AgriLabPage() {
         <h1 className="text-2xl font-extrabold text-petrol-900">Decision Lab agricolo</h1>
       </div>
       {bundle.project.mode === 'demo' && <DemoRibbon />}
+      <GuideBanner
+        readOnlyHint="Sola lettura: consulta la zona da controllare, le componenti e il confronto tra misure."
+        steps={[
+          { done: agri.zones.length > 0, label: 'definisci le sottozone della parcella', anchor: 'a1' },
+          { done: agri.zones.every((z) => z.fieldCapacity !== null && z.wiltingPoint !== null), label: 'completa i dati del suolo per ogni zona', anchor: 'a2' },
+          { done: agri.setup.phenology.confirmed, label: 'conferma la fase della vite osservata in campo', anchor: 'a3' },
+          { done: !!agri.weather, label: 'aggiorna i dati meteo', anchor: 'a4' },
+          { done: bundle.decisions.some((d) => d.sector === 'agriculture'), label: 'confronta le misure e registra la decisione', anchor: 'a7' },
+        ]}
+      />
 
       {first && (
         <section className="card border-l-8 border-l-alert-800" aria-labelledby="first-zone">
@@ -214,7 +227,7 @@ export default function AgriLabPage() {
         step={2}
         title="Input agronomici"
         aside={
-          draft && (
+          canEdit && draft && (
             <div className="flex gap-2">
               <button type="button" className="btn-primary" onClick={async () => { await saveAgri({ setup: draft.setup, zones: draft.zones }, 'Input agronomici aggiornati'); setDraft(null); }}>
                 Salva input
@@ -227,6 +240,27 @@ export default function AgriLabPage() {
         }
       >
         {draft && <Alert tone="warn">Modifiche non salvate: la valutazione usa ancora gli input salvati.</Alert>}
+        {!canEdit ? (
+          <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[14rem_1fr]">
+            <dt className="font-semibold text-sand-600">Coltura</dt>
+            <dd>Vite · {agri.setup.cultivar || 'cultivar n.d.'} · portinnesto {agri.setup.rootstock || 'n.d.'} · sesto {agri.setup.spacing || 'n.d.'}</dd>
+            <dt className="font-semibold text-sand-600">Irrigazione</dt>
+            <dd>
+              {agri.setup.irrigationSystem} · capacità {agri.setup.irrigationCapacityMmDay ?? 'n.d.'} mm/giorno
+            </dd>
+            <dt className="font-semibold text-sand-600">Soglia Tmax (DEMO)</dt>
+            <dd>{agri.setup.heatThresholdC} °C</dd>
+            {agri.zones.map((z) => (
+              <div key={z.id} className="contents">
+                <dt className="font-semibold text-sand-600">{z.name}</dt>
+                <dd>
+                  {z.soilTexture || 'tessitura n.d.'} · θcc {z.fieldCapacity ?? 'n.d.'} · θpa {z.wiltingPoint ?? 'n.d.'} · esposizione {z.aspectDeg ?? 'n.d.'}° · pendenza {z.slopePct ?? 'n.d.'}%
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+        <>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Coltura" htmlFor="crop">
             <input id="crop" className="input" value="Vite" disabled />
@@ -295,11 +329,14 @@ export default function AgriLabPage() {
             </tbody>
           </table>
         </div>
+        </>
+        )}
         <p className="text-xs text-sand-600">Tutti i valori sono INSERITI DALL’UTENTE: un campo vuoto resta un dato mancante e riduce la fiducia.</p>
       </Section>
 
       <Section id="a3" step={3} title="Fase fenologica (conferma obbligatoria)">
         <div className="grid gap-3 sm:grid-cols-2">
+          {canEdit ? (
           <Field label={<Term k="fenologia">Fase osservata</Term>} htmlFor="ph">
             <select
               id="ph"
@@ -320,10 +357,17 @@ export default function AgriLabPage() {
               ))}
             </select>
           </Field>
+          ) : (
+            <p className="text-sm">
+              Fase selezionata: <strong>{agri.setup.phenology.stage ? PHENOLOGY_LABEL[agri.setup.phenology.stage] : 'nessuna'}</strong>
+            </p>
+          )}
           {agri.setup.phenology.confirmed ? (
             <Alert tone="ok">
               Confermata da {agri.setup.phenology.confirmedBy} il {new Date(agri.setup.phenology.confirmedAt!).toLocaleDateString('it-IT')}.
             </Alert>
+          ) : !canEdit ? (
+            <Alert tone="warn">Fase non ancora confermata da chi lavora in campo.</Alert>
           ) : (
             <div className="space-y-2">
               <Field label="Chi conferma (osservazione in campo)" htmlFor="cf">
@@ -352,12 +396,14 @@ export default function AgriLabPage() {
         <p className="text-sm">
           {agri.weatherNote} Data di riferimento dell’analisi: <strong>{agri.today}</strong>.
         </p>
+        {canEdit && (
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" className="btn-secondary" onClick={refreshWeather} disabled={fetchState.status === 'loading'}>
             {fetchState.status === 'loading' ? 'Richiesta…' : 'Aggiorna da Open-Meteo'}
           </button>
           <span className="text-xs text-sand-600">Stime modellistiche alle coordinate della parcella, non stazione nel vigneto.</span>
         </div>
+        )}
         {fetchState.status === 'error' && fetchState.error && (
           <Alert tone="error" title={`Meteo non disponibile (${fetchState.error.code})`}>
             <p>{fetchState.error.message} Nessun valore sostitutivo è stato inserito: restano i dati precedenti con la loro data.</p>
@@ -406,6 +452,7 @@ export default function AgriLabPage() {
           ))}
           {agri.observations.length === 0 && <li>Nessuna osservazione.</li>}
         </ul>
+        {canEdit && (
         <fieldset className="grid gap-3 rounded-lg border-2 border-sand-200 p-3 sm:grid-cols-2 lg:grid-cols-4">
           <legend className="px-1 font-semibold">Registra osservazione (oggi)</legend>
           <Field label="Zona" htmlFor="oz">
@@ -447,6 +494,7 @@ export default function AgriLabPage() {
             </button>
           </div>
         </fieldset>
+        )}
         <p className="text-xs text-sand-600">Foto e documenti: Milestone 1. Una fotografia documenta, non costituisce una diagnosi agronomica.</p>
       </Section>
 
@@ -546,7 +594,7 @@ export default function AgriLabPage() {
         </Section>
       )}
 
-      {selected && (
+      {selected && canEdit && (
         <Section id="a8" step={8} title="Decisione sotto supervisione">
           {decErrors.length > 0 && (
             <Alert tone="error" title="Completa la decisione">
@@ -654,7 +702,7 @@ export default function AgriLabPage() {
               </table>
             </div>
           ) : null}
-          <p className="text-sm">Registra al passo 4 una misura di umidità del suolo o un’osservazione di follow-up per documentare la risposta.</p>
+          {canEdit && <p className="text-sm">Registra al passo 4 una misura di umidità del suolo o un’osservazione di follow-up per documentare la risposta.</p>}
         </Section>
       )}
     </div>

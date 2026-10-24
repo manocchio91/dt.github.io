@@ -31,7 +31,7 @@ P0 = Milestone 0 (integrità) · P1 = Milestone 1 (MVP pilota) · P2 = Milestone
 | ID | Elemento | F |
 |---|---|---|
 | B-101 | Collegamento Supabase: auth, `SupabaseRepository`, RLS per tenant, storage — **fatto** (testato su PGlite; da provare su istanza reale), vedi docs/11 | F26 |
-| B-102 | Onboarding per ruolo (5 domande), modalità guidata/tecnica | F01 |
+| B-102 | Onboarding per profilo (6 domande), modalità guidata/tecnica — **fatto**, vedi docs/12 | F01 |
 | B-103 | Geocodifica via proxy (Nominatim con User-Agent / provider a contratto) | F02 |
 | B-104 | Edge Function proxy per Open-Meteo con cache server | F04 |
 | B-105 | Import sensori CSV/API con anagrafica completa e QA/QC in UI | F05 |
@@ -42,13 +42,15 @@ P0 = Milestone 0 (integrità) · P1 = Milestone 1 (MVP pilota) · P2 = Milestone
 | B-110 | PWA: service worker, sync differita, avviso dati obsoleti | F28 |
 | B-111 | Casi studio strutturati con punteggio di comparabilità | F20 |
 | B-112 | Link condivisi revocabili con scadenza — **fatto** (backend + UI) | F26 |
-| B-113 | Test E2E Playwright sui due journey | — |
+| B-113 | Test E2E Playwright sui due journey — **avviato** (onboarding, primo scenario, ruoli, mobile) | — |
 | B-114 | Audit accessibilità WCAG 2.2 AA (axe + verifica manuale screen reader) | F29 |
 | B-115 | Modulo test utenti (consenso, attività, osservazioni, feedback, A/B guidata vs tecnica) | — |
 | B-116 | Vista 3D non decorativa (estrusione edifici per ombra) | F03 |
 | B-117 | Satellite: prodotto LST / Sentinel-2 con data, risoluzione, nuvolosità | F06 |
 | B-118 | Rifugi climatici su rete pedonale | F10 |
-| B-120 | UI role-aware: nascondere/disabilitare i comandi di modifica ai viewer | F26 |
+| B-120 | UI role-aware: nascondere i comandi di modifica ai viewer — **fatto** (RLS resta la protezione principale) | F26 |
+| B-121 | Copia facoltativa delle preferenze da ospite all’account al primo accesso | F01 |
+| B-122 | Misurare con utenti reali i tempi di onboarding (< 2 min) e primo scenario (< 5 min) | F01 |
 | B-119 | Riapplicare gli interventi di uno scenario a una nuova versione della baseline (nuovo scenario, stessi interventi) | F14 |
 
 ## P2 — Milestone 2

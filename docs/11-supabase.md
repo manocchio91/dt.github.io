@@ -37,7 +37,7 @@ Docker non era attivo, quindi non è stato avviato uno stack Supabase locale. Le
 
 ## Limiti noti
 
-- L’interfaccia non nasconde ancora i comandi di modifica ai viewer: il server li rifiuta e l’app mostra un avviso (banner “ruolo lettura” e messaggio d’errore).
+- ~~L’interfaccia non nasconde i comandi di modifica ai viewer~~ — risolto con B-120 (vedi [12-onboarding-e-ruoli.md](12-onboarding-e-ruoli.md)); il server resta la protezione principale.
 - Offline con archivio condiviso: senza rete il salvataggio fallisce in modo esplicito; coda di sincronizzazione nella PWA (B-110).
 - La UI di caricamento foto/documenti (B-109) userà `media.ts`; per ora il servizio è pronto ma non esposto.
 - `bundle_hash` è calcolato dal client; il server verifica le regole di integrità, non ricalcola l’hash canonico.

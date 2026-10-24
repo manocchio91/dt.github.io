@@ -4,17 +4,23 @@
   "type": "module",
   "version": "0.1.0",
   "description": "Micro Digital Twin — Climate Decision Lab (Milestone 0)",
-  "workspaces": ["packages/*", "apps/*", "supabase"],
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "supabase"
+  ],
   "scripts": {
     "dev": "npm run dev -w @mdt/web",
     "build": "npm run build -w @mdt/web",
     "lint": "eslint .",
-    "typecheck": "tsc -p packages/domain --noEmit && tsc -p apps/web --noEmit && tsc -p supabase --noEmit",
+    "typecheck": "tsc -p packages/domain --noEmit && tsc -p apps/web --noEmit && tsc -p supabase --noEmit && tsc -p e2e --noEmit",
     "test": "vitest run",
-    "ci": "npm run lint && npm run typecheck && npm run test && npm run build"
+    "ci": "npm run lint && npm run typecheck && npm run test && npm run build",
+    "e2e": "npm run build && npm run build:e2e -w @mdt/web && playwright test"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
+    "@playwright/test": "~1.56.1",
     "eslint": "^9.39.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^16.0.0",

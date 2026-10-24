@@ -6,7 +6,7 @@ Legenda stato: **Operativa** · **Beta** · **Dimostrativa** (funziona, ma su mo
 
 | ID | Requisito | Criterio | Funzione implementata | Test / evidenza | Stato M0 |
 |---|---|---|---|---|---|
-| F01 | Onboarding per ruolo | primo scenario ≤ 5 min | Accesso diretto ai seed DEMO dalla landing | — | Roadmap (M1) |
+| F01 | Onboarding per ruolo | primo scenario ≤ 5 min | 6 domande, profilo separato dal ruolo, preferenze su Supabase/locale, instradamento per ambito, modalità guidata/tecnica, salto in Demo | `onboarding.test.ts` (14), `onboarding.test.tsx` (12), `e2e/onboarding.spec.ts` (5), `e2e/supabase.spec.ts` (4), `e2e/mobile.spec.ts` | Operativa (tempi umani da misurare) |
 | F02 | AOI reale | geometria e superficie salvate | Disegno, import GeoJSON, coordinate da tastiera; area geodetica; blocco su geometria non valida | `geo.test.ts` (6 test), pagina /area | Operativa |
 | F03 | Mappa 2D/3D | coordinate, legenda, layer coerenti | MapLibre 2D, scala, coordinate cursore EPSG:4326, legenda a classi | verifica manuale | Beta (3D assente) |
 | F04 | Meteo | fonte, timestamp, timezone, coordinate, fallback visibili | Connettore Open-Meteo archivio + forecast, cache, timeout, errori espliciti | `openMeteo.test.ts` (8 test); chiamata reale verificata in browser | Beta |
@@ -31,10 +31,10 @@ Legenda stato: **Operativa** · **Beta** · **Dimostrativa** (funziona, ma su mo
 | F23 | AI fotografica | non attiva senza benchmark | Volutamente assente | — | Roadmap |
 | F24 | Sensor placement | spiegabile, approvazione umana | — | — | Roadmap |
 | F25 | Export | PDF/CSV/GeoJSON coerenti e reimportabili | JSON progetto con hash + verifica riproducibilità; GeoJSON scenario reimportabile | `bundle.test.ts` | Beta (PDF/CSV M1) |
-| F26 | Account | tenant, revoca link | Supabase Auth, organizzazioni e ruoli, RLS su tutte le tabelle, link con scadenza e revoca | `rls.test.ts` (23), `repository.test.ts` (5) | Beta (non provato su istanza reale) |
+| F26 | Account | tenant, revoca link | Supabase Auth, organizzazioni e ruoli, RLS su tutte le tabelle, link con scadenza e revoca, interfaccia per ruolo (B-120) | `rls.test.ts` (23), `repository.test.ts` (5), `preferences.test.ts` (7), `readOnly.test.tsx` (14), `e2e/supabase.spec.ts` | Beta (non provato su istanza reale) |
 | F27 | Workflow | storico attore-data-motivazione | Decisione con alternative, motivazione, autore, storico; invio a revisione | `bundle.test.ts` (validazione) | Beta |
 | F28 | PWA | offline senza perdita dati | Persistenza IndexedDB locale | — | Beta (no service worker) |
-| F29 | Accessibilità | nessun blocco critico tastiera/mobile | Focus visibile, skip link, landmark, tabelle equivalenti alle mappe, coordinate da tastiera, simboli oltre al colore | non verificato con screen reader | Beta |
+| F29 | Accessibilità | nessun blocco critico tastiera/mobile | Focus visibile, skip link, landmark, tabelle equivalenti alle mappe, coordinate da tastiera per aree e interventi, onboarding con focus gestito, simboli oltre al colore | E2E solo tastiera e smartphone; non verificato con screen reader | Beta |
 | F30 | Ex-post | ≥ 1 pilota previsto/osservato | Piano, import CSV, filtro omogeneità, scarto, lezioni, proposta di nuova versione | `expost.test.ts` | Dimostrativa (nessun pilota reale) |
 
-Riepilogo (dopo M1 passo 1): Operativa 8 · Beta 10 · Dimostrativa 4 · Roadmap 7 · Non disponibile 1.
+Riepilogo (dopo M1, B-102 e B-120): Operativa 9 · Beta 10 · Dimostrativa 4 · Roadmap 6 · Non disponibile 1.

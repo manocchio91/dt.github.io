@@ -19,7 +19,7 @@ export function DataScope({ children }: { children: ReactNode }) {
   );
   if (!ready) return <p className="p-6 text-sm">Verifica della sessione…</p>;
   return (
-    <StoreProvider key={key} repository={repository}>
+    <StoreProvider key={key} repository={repository} readOnly={!!remote && current?.role === 'viewer'}>
       {children}
     </StoreProvider>
   );

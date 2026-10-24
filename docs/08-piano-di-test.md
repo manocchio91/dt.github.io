@@ -6,7 +6,8 @@
 |---|---|---|
 | Unitari dominio | Vitest (`packages/domain`) | geometria e area, validazione AOI, hash deterministico, baseline immutabili, adapter urbano/agricolo/costi/incertezza, comparabilità, QA/QC, connettore Open-Meteo (fetch simulato, errori espliciti), ex-post, registro funzioni |
 | Componenti | Vitest + Testing Library (`apps/web`) | `DataBadge` apre il pannello lineage; DATO MANCANTE senza numero |
-| End-to-end | Playwright | M1 (B-113) |
+| Database | Vitest + PGlite (PostgreSQL 17 + PostGIS) con schemi Supabase emulati | RLS, ruoli, integrità documento, link condivisi, storage, preferenze utente (`supabase/tests`) |
+| End-to-end | Playwright su Microsoft Edge (build di produzione) | onboarding urbano/agricolo, primo scenario da zero, solo tastiera, Demo senza registrazione, preferenze, backend Supabase simulato (ruoli, cambio organizzazione, persistenza, 403 lato server), smartphone — `npm run e2e` |
 | Accessibilità | axe-core + manuale | M1 (B-114); in M0: focus visibile, landmark, etichette, pattern oltre al colore |
 | CI | lint + typecheck + test + build | script `npm run ci` |
 

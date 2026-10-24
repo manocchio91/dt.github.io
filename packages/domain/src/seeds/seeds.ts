@@ -29,6 +29,19 @@ const sim = (key: string, label: string, unit: string, value: number, at: string
 
 // ------------------------------------------------------------------ Campobasso
 
+/** Valori di baseline urbana DIMOSTRATIVI (SIMULATI, isDemo): usati dal seed e, su scelta esplicita, nei progetti Demo. */
+export function demoUrbanBaselineValues(at: string): DataValue[] {
+  return [
+    sim('t_air_ref_hour', 'Temperatura aria a 2 m, ore 15:00 (media periodo)', '°C', 29, at, 'Ordine di grandezza plausibile per Campobasso (~700 m s.l.m.) in estate.', { height: '2 m' }),
+    sim('t_air_max_mean', 'Media delle temperature massime giornaliere', '°C', 29.8, at, 'Valore sintetico.', { height: '2 m' }),
+    sim('t_surface_ref_hour', 'Temperatura superficiale pavimentazione soleggiata, ore 15:00', '°C', 47, at, 'Valore sintetico: in un pilota servirebbe LST satellitare o termocamera.'),
+    sim('rh_ref_hour', 'Umidità relativa a 2 m, ore 15:00', '%', 38, at, 'Valore sintetico.', { height: '2 m' }),
+    sim('wind_10m_ref_hour', 'Vento a 10 m, ore 15:00', 'm/s', 2.4, at, 'Valore sintetico, quota 10 m (non pedone).', { height: '10 m' }),
+    sim('sw_radiation_ref_hour', 'Radiazione globale, ore 15:00', 'W/m²', 760, at, 'Valore sintetico.'),
+    sim('frac_impervious', 'Quota di superficie impermeabile', 'frazione', 0.85, at, 'Stima visiva sintetica.'),
+  ];
+}
+
 export const CAMPOBASSO_AOI: Polygon = polygonFromVertices([
   [14.66276, 41.56033],
   [14.66384, 41.56033],
@@ -65,15 +78,7 @@ export function seedCampobasso(now: Date): ProjectBundle {
       periodStart: '2025-07-15',
       periodEnd: '2025-08-15',
       referenceHourLocal: 15,
-      values: [
-        sim('t_air_ref_hour', 'Temperatura aria a 2 m, ore 15:00 (media periodo)', '°C', 29, at, 'Ordine di grandezza plausibile per Campobasso (~700 m s.l.m.) in estate.', { height: '2 m' }),
-        sim('t_air_max_mean', 'Media delle temperature massime giornaliere', '°C', 29.8, at, 'Valore sintetico.', { height: '2 m' }),
-        sim('t_surface_ref_hour', 'Temperatura superficiale pavimentazione soleggiata, ore 15:00', '°C', 47, at, 'Valore sintetico: in un pilota servirebbe LST satellitare o termocamera.'),
-        sim('rh_ref_hour', 'Umidità relativa a 2 m, ore 15:00', '%', 38, at, 'Valore sintetico.', { height: '2 m' }),
-        sim('wind_10m_ref_hour', 'Vento a 10 m, ore 15:00', 'm/s', 2.4, at, 'Valore sintetico, quota 10 m (non pedone).', { height: '10 m' }),
-        sim('sw_radiation_ref_hour', 'Radiazione globale, ore 15:00', 'W/m²', 760, at, 'Valore sintetico.'),
-        sim('frac_impervious', 'Quota di superficie impermeabile', 'frazione', 0.85, at, 'Stima visiva sintetica.'),
-      ],
+      values: demoUrbanBaselineValues(at),
       qaNotes: ['Baseline DEMO: nessun controllo QA/QC applicabile a dati sintetici.'],
       sourceSummary: 'Dataset dimostrativo sintetico (DEMO)',
       isDemo: true,

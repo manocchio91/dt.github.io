@@ -20,7 +20,9 @@
 | `/metodo` | Fonti e metodo | M0 | Registro adapter, lineage, classi di dato |
 | `/stato` | Stato funzioni | M0 | F01–F30 con stato e evidenza |
 | `/limiti` | Limiti e responsabilità | M0 | Disclaimer, cosa l'app non fa |
-| `/onboarding` | Onboarding | M1 | 5 domande, modalità guidata/tecnica |
+| `/benvenuto` | Onboarding | M1 ✔ | 6 domande, profilo ≠ ruolo, modalità guidata/tecnica, salto in Demo; `?modifica=1` per cambiare le preferenze |
+| `/accesso` | Accesso e organizzazione | M1 ✔ | login, scelta organizzazione, membri |
+| `/condiviso/:token` | Vista condivisa | M1 ✔ | sola lettura via link con scadenza |
 | `/dashboard/*` | Dashboard urbana / agricola / esecutiva | M1 | |
 | `/progetti/:id/dossier` | Dossier e workflow | M1 | |
 | `/progetti/:id/osservazioni` | Foto e documenti | M1 | |

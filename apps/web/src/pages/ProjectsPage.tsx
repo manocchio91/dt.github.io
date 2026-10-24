@@ -5,6 +5,7 @@ import { downloadText, useStore } from '../state/store';
 import { Alert, Field } from '../components/ui';
 import { formatArea } from '@mdt/domain';
 import { SharePanel } from '../components/SharePanel';
+import { CanEdit, usePermissions } from '../state/permissions';
 
 export function ProjectsPage() {
   const { projects, save, remove, openDemo, ready, kind } = useStore();
@@ -12,6 +13,7 @@ export function ProjectsPage() {
   const [name, setName] = useState('');
   const [sector, setSector] = useState<Sector>('urban');
   const [imp, setImp] = useState<ImportCheck | null>(null);
+  const perms = usePermissions();
 
   const create = async (e: FormEvent) => {
     e.preventDefault();
@@ -37,6 +39,7 @@ export function ProjectsPage() {
           : 'I progetti sono salvati in questo browser (IndexedDB). Per conservarli o condividerli accedi a un’organizzazione o usa “Esporta”.'}
       </p>
 
+      <CanEdit fallback={<p className="text-sm text-sand-600">Hai il ruolo “lettura”: puoi aprire ed esportare i progetti dell’organizzazione, non crearli o modificarli.</p>}>
       <div className="flex flex-wrap gap-2">
         <button type="button" className="btn-secondary" disabled={!ready} onClick={async () => nav(`/progetti/${await openDemo('urban')}/urbano`)}>
           Carica demo urbana
@@ -49,6 +52,7 @@ export function ProjectsPage() {
           <input type="file" accept="application/json,.json" className="sr-only" onChange={(e) => onImport(e.target.files?.[0])} />
         </label>
       </div>
+      </CanEdit>
 
       {imp && (
         <Alert tone={imp.ok ? 'ok' : imp.bundle && imp.hashOk ? 'warn' : 'error'} title={imp.ok ? 'Progetto importato e verificato' : 'Esito importazione'}>
@@ -65,6 +69,7 @@ export function ProjectsPage() {
         </Alert>
       )}
 
+      <CanEdit>
       <section className="card" aria-labelledby="nuovo">
         <h2 id="nuovo" className="h-section">
           Nuovo progetto
@@ -89,6 +94,7 @@ export function ProjectsPage() {
           </button>
         </form>
       </section>
+      </CanEdit>
 
       <ul className="grid gap-3 md:grid-cols-2">
         {projects.map((b) => {
@@ -122,6 +128,7 @@ export function ProjectsPage() {
                 >
                   Esporta JSON
                 </button>
+                {perms.canAdmin && (
                 <button
                   type="button"
                   className="btn-danger"
@@ -132,6 +139,7 @@ export function ProjectsPage() {
                 >
                   Elimina
                 </button>
+                )}
               </div>
               {kind === 'supabase' && <SharePanel projectId={p.id} />}
             </li>

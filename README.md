@@ -7,7 +7,7 @@
 
 > L’app non prende decisioni al posto delle persone. Rende leggibili dati, ipotesi, limiti e alternative.
 
-Stato attuale: **Milestone 0 (integrità)** completata — [report](docs/report-milestone-0.md). **Milestone 1**, passo 1: Supabase (auth, tenant, RLS, storage) — [docs/11-supabase.md](docs/11-supabase.md).
+Stato attuale: **Milestone 0 (integrità)** completata — [report](docs/report-milestone-0.md). **Milestone 1**: Supabase (auth, tenant, RLS, storage) — [docs/11](docs/11-supabase.md); onboarding per profilo e interfaccia per ruolo — [docs/12](docs/12-onboarding-e-ruoli.md).
 
 ## Avvio
 
@@ -28,6 +28,7 @@ Comandi:
 | `npm run typecheck` | `tsc --noEmit` strict su dominio e web |
 | `npm test` | Vitest: dominio (node), web (jsdom), database (Postgres/PostGIS in PGlite con RLS) |
 | `npm run ci` | lint → typecheck → test → build |
+| `npm run e2e` | build standard + build con Supabase simulato, poi Playwright su Microsoft Edge |
 
 Senza variabili d’ambiente l’app funziona in modalità locale (IndexedDB). Per l’archivio condiviso imposta `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (vedi [.env.example](.env.example) e [docs/11-supabase.md](docs/11-supabase.md)).
 

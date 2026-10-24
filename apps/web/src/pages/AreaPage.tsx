@@ -10,24 +10,15 @@ import {
   STORAGE_CRS,
   validateAoi,
   type Polygon,
-  type Position,
   type VineyardZone,
 } from '@mdt/domain';
 import { MapView, type MapPolygon } from '../components/MapView';
 import { Alert, Field, Section, Term } from '../components/ui';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { todayRome } from '../state/store';
+import { usePermissions } from '../state/permissions';
+import { parseCoordinates } from '../components/guide';
 
-function parseCoordinates(text: string): { vertices: Position[]; error: string | null } {
-  const vertices: Position[] = [];
-  const lines = text.split(/\n/).map((l) => l.trim()).filter(Boolean);
-  for (const [i, l] of lines.entries()) {
-    const parts = l.split(/[,;\s]+/).map(Number);
-    if (parts.length < 2 || parts.some((n) => !Number.isFinite(n))) return { vertices: [], error: `Riga ${i + 1}: usa il formato "latitudine, longitudine".` };
-    vertices.push([parts[1]!, parts[0]!]);
-  }
-  return { vertices, error: null };
-}
 
 export default function AreaPage() {
   const { bundle, ready, update } = useProject();
@@ -40,6 +31,7 @@ export default function AreaPage() {
   const [zoneName, setZoneName] = useState('');
 
   const validation = useMemo(() => (draft ? validateAoi(draft) : null), [draft]);
+  const { canEdit } = usePermissions();
   if (!bundle) return <ProjectMissing ready={ready} />;
   const isAgri = bundle.project.sector === 'agriculture';
   const area = bundle.area;
@@ -193,7 +185,9 @@ export default function AreaPage() {
             <p className="text-sm">Nessuna area salvata. Disegnala sulla mappa, importa un GeoJSON o inserisci le coordinate.</p>
           )}
 
-          {locked ? (
+          {!canEdit ? (
+            <p className="text-sm text-sand-600">Sola lettura: l’area può essere modificata solo da chi ha il ruolo “modifica”.</p>
+          ) : locked ? (
             <Alert tone="warn">
               L’area ha già baseline o scenari collegati: non può essere sostituita senza invalidarli. Crea un nuovo progetto per un’area diversa.
             </Alert>
@@ -263,6 +257,7 @@ export default function AreaPage() {
                   <span>
                     <strong>{z.name}</strong> · {formatArea(geodesicAreaM2(z.geometry))}
                   </span>
+                  {canEdit && (
                   <button
                     type="button"
                     className="btn-ghost text-alert-800"
@@ -271,9 +266,11 @@ export default function AreaPage() {
                   >
                     Rimuovi
                   </button>
+                  )}
                 </li>
               ))}
             </ul>
+            {canEdit && (
             <div className="flex flex-wrap gap-2">
               <button type="button" className="btn-secondary" onClick={() => setDrawTarget('zona')}>
                 Disegna sottozona
@@ -283,6 +280,7 @@ export default function AreaPage() {
                 <input type="file" accept=".geojson,.json" className="sr-only" onChange={(e) => onImport(e.target.files?.[0], 'zona')} />
               </label>
             </div>
+            )}
             {zoneDraft && zoneValidation && (
               <div className="space-y-2">
                 {zoneValidation.valid ? <Alert tone="ok">Sottozona valida ({formatArea(zoneValidation.areaM2 ?? 0)}).</Alert> : <Alert tone="error">{zoneValidation.errors.map((e) => <p key={e}>{e}</p>)}</Alert>}

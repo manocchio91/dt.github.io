@@ -20,6 +20,7 @@ import { coolingColor, CoolingLegend, MapView, type MapPolygon } from '../compon
 import { Alert, DemoRibbon, Field, Section, Term } from '../components/ui';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { downloadText } from '../state/store';
+import { usePermissions } from '../state/permissions';
 
 type Triple = [number, number, number];
 const eur = (t: Triple, unit = '€') =>
@@ -81,6 +82,7 @@ export default function ComparePage() {
   const [rationale, setRationale] = useState('');
   const [author, setAuthor] = useState('');
   const [formErrors, setFormErrors] = useState<string[]>([]);
+  const perms = usePermissions();
 
   const grid = useMemo(() => (bundle?.area ? buildGrid(bundle.area.geometry, suggestedCellSize(bundle.area.areaM2)) : null), [bundle?.area]);
   if (!bundle) return <ProjectMissing ready={ready} />;
@@ -292,6 +294,7 @@ export default function ComparePage() {
             </Section>
           )}
 
+          {perms.canEdit ? (
           <Section title="Decisione motivata">
             <p className="text-sm">L’app non sceglie: registra la tua scelta, le alternative considerate e la motivazione. Nessuna validità legale automatica.</p>
             {formErrors.length > 0 && (
@@ -334,6 +337,11 @@ export default function ComparePage() {
               Registra decisione (bozza)
             </button>
           </Section>
+          ) : (
+            <Section title="Decisione motivata">
+              <p className="text-sm text-sand-600">Sola lettura: le decisioni le registra chi ha il ruolo “modifica”. Qui sotto trovi quelle già registrate.</p>
+            </Section>
+          )}
         </>
       )}
 
@@ -355,7 +363,7 @@ export default function ComparePage() {
                     </li>
                   ))}
                 </ol>
-                {d.state === 'bozza' && (
+                {perms.canEdit && d.state === 'bozza' && (
                   <button type="button" className="btn-secondary mt-2" onClick={() => sendToReview(d)}>
                     Invia a revisione
                   </button>

@@ -6,6 +6,7 @@ import {
   createBaseline,
   createScenario,
   deriveBaselineVersion,
+  demoUrbanBaselineValues,
   fetchUrbanBaselineWeather,
   findValue,
   formatArea,
@@ -28,6 +29,9 @@ import { DataBadge, formatNumber } from '../components/DataBadge';
 import { coolingColor, CoolingLegend, MapView, type MapPoint, type MapPolygon } from '../components/MapView';
 import { Alert, DemoRibbon, Field, Section, Term } from '../components/ui';
 import { ProjectMissing, useProject } from '../state/useProject';
+import { CanEdit, usePermissions } from '../state/permissions';
+import { useWorkMode } from '../state/preferences';
+import { GuideBanner, parseCoordinates } from '../components/guide';
 import { buildIntervention, nextScenarioLabel, PARAM_DEFAULTS, PARAM_LABEL, PARAM_OPTIONS, refreshCombined, type ParamValue } from './urbanForms';
 
 const INDICATORS: { key: string; title: string; termKey?: string; note: string }[] = [
@@ -51,6 +55,10 @@ export default function UrbanLabPage() {
   const [surfaceInput, setSurfaceInput] = useState('');
   const [showCells, setShowCells] = useState(true);
   const [combineSel, setCombineSel] = useState<string[]>([]);
+  const [iCoords, setICoords] = useState('');
+  const [coordError, setCoordError] = useState<string | null>(null);
+  const perms = usePermissions();
+  const mode = useWorkMode();
 
   const area = bundle?.area ?? null;
   const aoiOk = area ? validateAoi(area.geometry).valid : false;
@@ -88,6 +96,25 @@ export default function UrbanLabPage() {
     await update((b) => ({ ...b, baselines: [...b.baselines, nb] }), { action: 'baseline', detail: `Baseline v${nb.version} da Open-Meteo (${p.start}→${p.end}, ore ${p.hour})` });
     setBaselineSel(nb.id);
     setFetchState({ status: 'ok', info: `Creata baseline v${nb.version}. Le versioni precedenti restano invariate.` });
+  };
+
+  const applyDemoBaseline = async () => {
+    if (!area) return;
+    const now = new Date();
+    const content = {
+      periodStart: p.start,
+      periodEnd: p.end,
+      referenceHourLocal: p.hour,
+      values: demoUrbanBaselineValues(now.toISOString()),
+      qaNotes: ['Valori DIMOSTRATIVI SIMULATI scelti esplicitamente dall’utente: non derivano da misure né da modelli.'],
+      sourceSummary: 'Valori dimostrativi SIMULATI (DEMO)',
+      isDemo: true,
+    };
+    const latest = baselines[0];
+    const nb = latest ? deriveBaselineVersion(latest, content, now) : createBaseline({ ...content, projectId: bundle.project.id, areaId: area.id }, now);
+    await update((b) => ({ ...b, baselines: [...b.baselines, nb] }), { action: 'baseline', detail: `Baseline v${nb.version} con valori dimostrativi SIMULATI` });
+    setBaselineSel(nb.id);
+    setFetchState({ status: 'ok', info: `Creata baseline v${nb.version} con valori dimostrativi: tutti marcati SIMULATO.` });
   };
 
   const addSurfaceVersion = async () => {
@@ -208,6 +235,17 @@ export default function UrbanLabPage() {
         </Link>
       </div>
       {isDemo && <DemoRibbon />}
+      <GuideBanner
+        readOnlyHint="Sola lettura: consulta baseline, scenari e risultati; il confronto è nella pagina “Confronto e decisione”."
+        steps={[
+          { done: !!(area && aoiOk), label: 'definisci l’area', anchor: 'u1' },
+          { done: !!baseline, label: 'crea la baseline (periodo e ora)', anchor: 'u2' },
+          { done: scenarios.length > 0, label: 'aggiungi uno scenario', anchor: 'u5' },
+          { done: scenarios.some((s) => s.interventions.length > 0), label: 'posiziona un intervento', anchor: 'u6' },
+          { done: bundle.runs.some((r) => scenarios.some((s) => s.id === r.scenarioId) && r.outputs.length > 0), label: 'calcola lo scenario', anchor: 'u7' },
+          { done: scenarios.length >= 2, label: 'crea un secondo scenario da confrontare', anchor: 'u5' },
+        ]}
+      />
 
       <Section id="u1" step={1} title="Area reale">
         {area && aoiOk ? (
@@ -228,6 +266,13 @@ export default function UrbanLabPage() {
       {area && aoiOk && (
         <>
           <Section id="u2" step={2} title="Periodo e ora di riferimento">
+            <CanEdit
+              fallback={
+                <p className="text-sm text-sand-600">
+                  {baseline ? `Periodo della baseline corrente: ${baseline.periodStart} → ${baseline.periodEnd}, ore ${String(baseline.referenceHourLocal).padStart(2, '0')}:00.` : 'Nessuna baseline creata.'} Solo chi ha il ruolo “modifica” può creare nuove versioni.
+                </p>
+              }
+            >
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="Dal" htmlFor="pstart">
                 <input id="pstart" type="date" className="input" value={p.start} onChange={(e) => setPeriod({ ...p, start: e.target.value })} />
@@ -251,6 +296,14 @@ export default function UrbanLabPage() {
               </button>
               <span className="text-xs text-sand-600">Stima modellistica riferita alla cella di griglia, non sensore sul posto.</span>
             </div>
+            {isDemo && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" className="btn-ghost underline" onClick={applyDemoBaseline}>
+                  Usa valori dimostrativi (SIMULATI)
+                </button>
+                <span className="text-xs text-sand-600">Per provare subito, anche senza rete: ogni valore sarà marcato SIMULATO.</span>
+              </div>
+            )}
             {fetchState.status === 'error' && fetchState.error && (
               <Alert tone="error" title={`Dati meteo non disponibili (${fetchState.error.code})`}>
                 <p>{fetchState.error.message}</p>
@@ -260,6 +313,7 @@ export default function UrbanLabPage() {
               </Alert>
             )}
             {fetchState.status === 'ok' && <Alert tone="ok">{fetchState.info}</Alert>}
+            </CanEdit>
           </Section>
 
           <Section
@@ -315,6 +369,7 @@ export default function UrbanLabPage() {
                   </table>
                 </div>
                 {baseline.qaNotes.length > 0 && <p className="text-xs text-sand-600">QA: {baseline.qaNotes.join(' ')}</p>}
+                <CanEdit>
                 <details>
                   <summary className="cursor-pointer text-sm font-semibold text-petrol-700">Aggiungi una temperatura superficiale nota (crea una nuova versione)</summary>
                   <div className="mt-2 flex flex-wrap items-end gap-2">
@@ -326,6 +381,7 @@ export default function UrbanLabPage() {
                     </button>
                   </div>
                 </details>
+                </CanEdit>
               </>
             )}
           </Section>
@@ -369,6 +425,7 @@ export default function UrbanLabPage() {
                   </button>
                 ))}
               </div>
+              <CanEdit>
               <div className="grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-end">
                 <Field label="Nuovo scenario — descrizione" htmlFor="sdesc">
                   <input id="sdesc" className="input" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="es. Alberature lungo il lato sud" />
@@ -408,6 +465,7 @@ export default function UrbanLabPage() {
                   </div>
                 </fieldset>
               )}
+              </CanEdit>
             </Section>
           )}
 
@@ -460,7 +518,7 @@ export default function UrbanLabPage() {
                             .join(' · ')}
                         </p>
                       </div>
-                      {scenario.combines.length === 0 && (
+                      {perms.canEdit && scenario.combines.length === 0 && (
                         <button type="button" className="btn-ghost text-alert-800" onClick={() => removeIntervention(i.id)}>
                           Rimuovi
                         </button>
@@ -471,7 +529,7 @@ export default function UrbanLabPage() {
                 {scenario.interventions.length === 0 && <li className="text-sm">Nessun intervento: aggiungine uno qui sotto.</li>}
               </ul>
 
-              {scenario.combines.length === 0 && (
+              {perms.canEdit && scenario.combines.length === 0 && (
                 <fieldset className="space-y-3 rounded-lg border-2 border-sand-200 p-3">
                   <legend className="px-1 font-semibold">Aggiungi intervento</legend>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -534,6 +592,32 @@ export default function UrbanLabPage() {
                   <button type="button" className="btn-primary" onClick={() => setPlacing(true)} disabled={placing}>
                     {INTERVENTION_GEOMETRY[iType] === 'points' ? 'Posiziona i punti sulla mappa' : 'Disegna il poligono sulla mappa'}
                   </button>
+                  <details className="text-sm" open={mode === 'tecnica'}>
+                    <summary className="cursor-pointer font-semibold text-petrol-700">Oppure inserisci le coordinate da tastiera</summary>
+                    <div className="mt-2 space-y-2">
+                      <Field
+                        label={INTERVENTION_GEOMETRY[iType] === 'points' ? 'Un punto per riga: latitudine, longitudine' : 'Vertici del poligono, uno per riga: latitudine, longitudine'}
+                        htmlFor="icoords"
+                      >
+                        <textarea id="icoords" className="input font-mono text-sm" rows={3} value={iCoords} onChange={(e) => setICoords(e.target.value)} placeholder="41.56045, 14.66300" />
+                      </Field>
+                      {coordError && <Alert tone="error">{coordError}</Alert>}
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={async () => {
+                          const r = parseCoordinates(iCoords);
+                          const min = INTERVENTION_GEOMETRY[iType] === 'points' ? 1 : 3;
+                          if (r.error || r.vertices.length < min) return setCoordError(r.error ?? `Servono almeno ${min} vertici.`);
+                          setCoordError(null);
+                          await placeIntervention(r.vertices as number[][]);
+                          setICoords('');
+                        }}
+                      >
+                        Aggiungi con queste coordinate
+                      </button>
+                    </div>
+                  </details>
                 </fieldset>
               )}
             </Section>
@@ -545,6 +629,7 @@ export default function UrbanLabPage() {
               step={7}
               title="Calcolo trasparente"
               aside={
+                perms.canEdit && (
                 <div className="flex flex-wrap gap-2">
                   <button type="button" className="btn-primary" onClick={() => calc([scenario])} disabled={scenario.interventions.length === 0}>
                     Calcola {scenario.label}
@@ -553,6 +638,7 @@ export default function UrbanLabPage() {
                     Calcola tutti
                   </button>
                 </div>
+                )
               }
             >
               {!run ? (
@@ -593,7 +679,7 @@ export default function UrbanLabPage() {
                     Modello {run.modelRef} · costi {run.costModelRef} · input <code>{run.inputHash.slice(0, 12)}…</code> · output <code>{run.outputHash ? `${run.outputHash.slice(0, 12)}…` : '—'}</code> · calcolato il{' '}
                     {new Date(run.computedAt).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })}. Stesso input → stesso output: il calcolo è deterministico.
                   </p>
-                  <details>
+                  <details open={mode === 'tecnica'}>
                     <summary className="cursor-pointer text-sm font-semibold text-petrol-700">Come è calcolato</summary>
                     <p className="mt-2 text-sm">
                       L’area è divisa in celle; per ogni cella si stimano le quote coperte da ombra, verde, materiali e nebulizzazione. Ogni copertura riduce la temperatura secondo coefficienti

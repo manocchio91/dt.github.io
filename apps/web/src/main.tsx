@@ -12,6 +12,8 @@ import { StatusPage } from './pages/StatusPage';
 import { LimitsPage } from './pages/LimitsPage';
 import { AuthPage } from './pages/AuthPage';
 import { SharedPage } from './pages/SharedPage';
+import { OnboardingPage } from './pages/OnboardingPage';
+import { PreferencesProvider } from './state/preferences';
 
 // le pagine con mappa caricano MapLibre solo quando servono
 const AreaPage = lazy(() => import('./pages/AreaPage'));
@@ -37,6 +39,7 @@ const router = createBrowserRouter([
       { path: '/stato', element: <StatusPage /> },
       { path: '/limiti', element: <LimitsPage /> },
       { path: '/accesso', element: <AuthPage /> },
+      { path: '/benvenuto', element: <OnboardingPage /> },
       { path: '/condiviso/:token', element: <SharedPage /> },
       { path: '*', element: <p className="card">Pagina non trovata.</p> },
     ],
@@ -46,9 +49,11 @@ const router = createBrowserRouter([
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
-      <DataScope>
-        <RouterProvider router={router} />
-      </DataScope>
+      <PreferencesProvider>
+        <DataScope>
+          <RouterProvider router={router} />
+        </DataScope>
+      </PreferencesProvider>
     </AuthProvider>
   </StrictMode>,
 );

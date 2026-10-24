@@ -15,4 +15,6 @@ export * from './connectors/openMeteo';
 export * from './expost/expost';
 export * from './features/features';
 export * from './project/bundle';
-export { seedCampobasso, seedVineyard, CAMPOBASSO_AOI, VINEYARD_PARCEL, DEMO_EXPOST_CSV, DEMO_EXPOST_POINTS } from './seeds/seeds';
+export { demoUrbanBaselineValues, seedCampobasso, seedVineyard, CAMPOBASSO_AOI, VINEYARD_PARCEL, DEMO_EXPOST_CSV, DEMO_EXPOST_POINTS } from './seeds/seeds';
+export * from './onboarding/onboarding';
+export * from './onboarding/permissions';

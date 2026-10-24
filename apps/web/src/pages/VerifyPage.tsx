@@ -15,6 +15,7 @@ import { ClassChip, DataBadge, formatNumber } from '../components/DataBadge';
 import { MapView } from '../components/MapView';
 import { Alert, Field, Section } from '../components/ui';
 import { ProjectMissing, useProject } from '../state/useProject';
+import { usePermissions } from '../state/permissions';
 
 const OUTPUT_OPTIONS = [
   { key: 'delta_t_surface', variable: 'temperatura_superficiale', label: 'Riduzione T superficiale media' },
@@ -31,6 +32,7 @@ export default function VerifyPage() {
   const [csvErrors, setCsvErrors] = useState<string[]>([]);
   const [rationale, setRationale] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
+  const { canEdit } = usePermissions();
 
   if (!bundle) return <ProjectMissing ready={ready} />;
   const withRuns = bundle.scenarios.filter((s) => bundle.runs.some((r) => r.scenarioId === s.id && r.outputs.length));
@@ -88,6 +90,12 @@ export default function VerifyPage() {
         <Alert tone="warn">
           Prima calcola almeno uno scenario. <Link to={`/progetti/${bundle.project.id}/urbano`} className="underline">Vai al Lab</Link>
         </Alert>
+      ) : !canEdit ? (
+        <Section step={1} title="Piano di monitoraggio (prima dell’intervento)">
+          <p className="text-sm text-sand-600">
+            {plan ? `Piano definito il ${new Date(plan.createdAt).toLocaleDateString('it-IT')} per i punti ${plan.points.map((x) => x.id).join(', ')}.` : 'Nessun piano definito.'} Solo chi ha il ruolo “modifica” può definirlo o importare misure.
+          </p>
+        </Section>
       ) : (
         <Section step={1} title="Piano di monitoraggio (prima dell’intervento)">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -166,6 +174,7 @@ export default function VerifyPage() {
             {plan.points.map((p) => p.id).join(', ')}
           </p>
           <p className="text-xs text-sand-600">CSV: punto,fase,variabile,timestamp,valore,unita,sensore,classe — fase = ante|post; classe = MISURATO | OSSERVATO_DA_DATASET | SIMULATO.</p>
+          {canEdit && (
           <div className="flex flex-wrap gap-2">
             <label className="btn-secondary cursor-pointer">
               Importa CSV misure
@@ -177,6 +186,7 @@ export default function VerifyPage() {
               </button>
             )}
           </div>
+          )}
           {csvErrors.length > 0 && (
             <Alert tone="error" title="Righe scartate">
               {csvErrors.map((e) => (
@@ -231,17 +241,17 @@ export default function VerifyPage() {
 
           <div className="grid gap-3 md:grid-cols-3">
             <Field label="Cause possibili dello scarto" htmlFor="causes">
-              <textarea id="causes" className="input" rows={3} defaultValue={plan.possibleCauses} onBlur={(e) => patchPlan({ possibleCauses: e.target.value })} />
+              <textarea id="causes" className="input" rows={3} defaultValue={plan.possibleCauses} readOnly={!canEdit} onBlur={(e) => canEdit && patchPlan({ possibleCauses: e.target.value })} />
             </Field>
             <Field label="Lezioni apprese" htmlFor="lessons">
-              <textarea id="lessons" className="input" rows={3} defaultValue={plan.lessonsLearned} onBlur={(e) => patchPlan({ lessonsLearned: e.target.value })} />
+              <textarea id="lessons" className="input" rows={3} defaultValue={plan.lessonsLearned} readOnly={!canEdit} onBlur={(e) => canEdit && patchPlan({ lessonsLearned: e.target.value })} />
             </Field>
             <Field label="Azione correttiva" htmlFor="corr">
-              <textarea id="corr" className="input" rows={3} defaultValue={plan.correctiveAction} onBlur={(e) => patchPlan({ correctiveAction: e.target.value })} />
+              <textarea id="corr" className="input" rows={3} defaultValue={plan.correctiveAction} readOnly={!canEdit} onBlur={(e) => canEdit && patchPlan({ correctiveAction: e.target.value })} />
             </Field>
           </div>
 
-          {cmp.observed !== null && planRun && (
+          {canEdit && cmp.observed !== null && planRun && (
             <div className="space-y-2 rounded-lg border-2 border-dashed border-petrol-500 p-3">
               <p className="font-semibold">Proponi una nuova calibrazione</p>
               <p className="text-sm">La versione attuale del modello ({planRun.modelRef}) resta invariata: la proposta crea una nuova versione da validare.</p>

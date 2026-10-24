@@ -1,6 +1,8 @@
 import { NavLink, Outlet, useMatch } from 'react-router-dom';
 import { useStore, lastProjectId } from '../state/store';
 import { useAuth, ROLE_LABEL } from '../state/auth';
+import { usePreferences } from '../state/preferences';
+import { PROFILE_LABEL } from '@mdt/domain';
 
 const linkCls = ({ isActive }: { isActive: boolean }) =>
   `flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${isActive ? 'bg-petrol-700 text-white' : 'text-petrol-900 hover:bg-petrol-100'}`;
@@ -8,6 +10,7 @@ const linkCls = ({ isActive }: { isActive: boolean }) =>
 export function Layout() {
   const { get, persistent, error, clearError, kind } = useStore();
   const { current, session, client } = useAuth();
+  const { preferences } = usePreferences();
   const match = useMatch('/progetti/:id/*');
   const pid = match?.params.id ?? lastProjectId() ?? undefined;
   const project = get(pid);
@@ -87,6 +90,16 @@ export function Layout() {
             <NavLink to="/accesso" className={linkCls}>
               Accesso e organizzazione
             </NavLink>
+            <NavLink to={preferences ? '/benvenuto?modifica=1' : '/benvenuto'} className={linkCls}>
+              {preferences ? 'Le mie preferenze' : 'Inizia (2 minuti)'}
+            </NavLink>
+            {preferences && (
+              <p className="px-3 pt-2 text-xs text-sand-600">
+                Profilo: {PROFILE_LABEL[preferences.profile].title} · modalità {preferences.mode}
+                <br />
+                Il profilo non modifica i permessi.
+              </p>
+            )}
           </div>
         </nav>
 

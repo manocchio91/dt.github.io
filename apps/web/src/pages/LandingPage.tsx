@@ -2,6 +2,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useStore } from '../state/store';
 import { StatusBadge } from '../components/ui';
+import { usePreferences } from '../state/preferences';
+import { DECISIONS, PROFILE_LABEL } from '@mdt/domain';
 
 const STEPS = [
   ['Dati', 'meteo, suolo, osservazioni, con fonte e qualità'],
@@ -17,11 +19,18 @@ export function LandingPage() {
   const { openDemo, ready } = useStore();
   const nav = useNavigate();
   const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const { preferences } = usePreferences();
 
   const go = async (kind: 'urban' | 'agriculture') => {
     setBusy(kind);
-    const id = await openDemo(kind);
-    nav(`/progetti/${id}/${kind === 'urban' ? 'urbano' : 'agricolo'}`);
+    try {
+      const id = await openDemo(kind);
+      nav(`/progetti/${id}/${kind === 'urban' ? 'urbano' : 'agricolo'}`);
+    } catch (e) {
+      setErr((e as Error).message);
+      setBusy(null);
+    }
   };
 
   return (
@@ -32,8 +41,32 @@ export function LandingPage() {
         <p className="mt-4 max-w-2xl text-base text-petrol-100 md:text-lg">
           Confronta alternative per ridurre il calore in uno spazio urbano o per capire quale zona del vigneto controllare. L’app rende leggibili dati, ipotesi, limiti e alternative: la decisione resta tua.
         </p>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          {preferences ? (
+            <>
+              <Link to="/benvenuto?modifica=1" className="btn bg-ochre-500 text-sand-900 hover:bg-ochre-100">
+                Le mie preferenze
+              </Link>
+              <span className="text-sm text-petrol-100">
+                {PROFILE_LABEL[preferences.profile].title} · {DECISIONS[preferences.sector].find((d) => d.id === preferences.decision)?.title}
+              </span>
+            </>
+          ) : (
+            <>
+              <Link to="/benvenuto" className="btn bg-ochre-500 text-sand-900 hover:bg-ochre-100">
+                Inizia: 6 domande, meno di 2 minuti
+              </Link>
+              <span className="text-sm text-petrol-100">Oppure apri subito una demo qui sotto, senza registrazione.</span>
+            </>
+          )}
+        </div>
       </section>
 
+      {err && (
+        <p role="alert" className="rounded-md bg-alert-100 p-3 text-sm text-alert-800">
+          {err}
+        </p>
+      )}
       <section aria-labelledby="scelta" className="grid gap-4 md:grid-cols-2">
         <h2 id="scelta" className="sr-only">
           Scegli il percorso

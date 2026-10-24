@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
+import { ORG_ROLE_LABEL, type OrgRole } from '@mdt/domain';
 import { getSupabase } from './supabase';
 
-export type OrgRole = 'viewer' | 'editor' | 'approver' | 'admin';
+export type { OrgRole };
 
 export interface Membership {
   organizationId: string;
@@ -10,7 +11,7 @@ export interface Membership {
   role: OrgRole;
 }
 
-interface AuthValue {
+export interface AuthValue {
   /** null = Supabase non configurato (modalità solo locale) */
   client: SupabaseClient | null;
   ready: boolean;
@@ -27,7 +28,8 @@ interface AuthValue {
   addMember(email: string, role: OrgRole): Promise<void>;
 }
 
-const Ctx = createContext<AuthValue | null>(null);
+/** Esportato per i test dei componenti (fornitura di un contesto controllato). */
+export const AuthContext = createContext<AuthValue | null>(null);
 const ORG_KEY = 'mdt:organization';
 
 const readOrg = () => {
@@ -143,18 +145,13 @@ export function AuthProvider({ children, client = getSupabase() }: { children: R
     [client, ready, session, memberships, current, selectOrganization, refreshMemberships, need],
   );
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthValue {
-  const v = useContext(Ctx);
+  const v = useContext(AuthContext);
   if (!v) throw new Error('useAuth fuori da AuthProvider');
   return v;
 }
 
-export const ROLE_LABEL: Record<OrgRole, string> = {
-  viewer: 'lettura',
-  editor: 'modifica',
-  approver: 'approvazione',
-  admin: 'amministrazione',
-};
+export const ROLE_LABEL = ORG_ROLE_LABEL;

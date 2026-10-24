@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { seedCampobasso, seedVineyard, withAudit, type ProjectBundle } from '@mdt/domain';
 import { createRepository, type Repository } from './repository';
+import { PermissionError } from './supabaseRepository';
 
 interface StoreValue {
   ready: boolean;
@@ -23,7 +24,18 @@ export function todayRome(now = new Date()): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Rome' }).format(now);
 }
 
-export function StoreProvider({ children, repository, persistent: persistentProp }: { children: ReactNode; repository?: Repository; persistent?: boolean }) {
+export function StoreProvider({
+  children,
+  repository,
+  persistent: persistentProp,
+  readOnly = false,
+}: {
+  children: ReactNode;
+  repository?: Repository;
+  persistent?: boolean;
+  /** ruolo "lettura": il client non tenta scritture (il server le rifiuterebbe comunque) */
+  readOnly?: boolean;
+}) {
   const [{ repo, persistent }] = useState(() =>
     repository ? { repo: repository, persistent: persistentProp ?? repository.kind === 'supabase' } : createRepository(),
   );
@@ -57,6 +69,7 @@ export function StoreProvider({ children, repository, persistent: persistentProp
   const save = useCallback(
     async (bundle: ProjectBundle) => {
       try {
+        if (readOnly) throw new PermissionError('Hai il ruolo “lettura” in questa organizzazione: non puoi salvare modifiche.');
         await repo.save(bundle);
         latest.current = [bundle, ...latest.current.filter((p) => p.project.id !== bundle.project.id)];
         setProjects(latest.current);
@@ -70,7 +83,7 @@ export function StoreProvider({ children, repository, persistent: persistentProp
         throw e;
       }
     },
-    [repo],
+    [repo, readOnly],
   );
 
   const get = useCallback((id: string | undefined) => projects.find((p) => p.project.id === id), [projects]);
@@ -90,6 +103,7 @@ export function StoreProvider({ children, repository, persistent: persistentProp
   const remove = useCallback(
     async (id: string) => {
       try {
+        if (readOnly) throw new PermissionError();
         await repo.remove(id);
       } catch (e) {
         setError((e as Error).message);
@@ -98,7 +112,7 @@ export function StoreProvider({ children, repository, persistent: persistentProp
       latest.current = latest.current.filter((p) => p.project.id !== id);
       setProjects(latest.current);
     },
-    [repo],
+    [repo, readOnly],
   );
 
   const openDemo = useCallback(
