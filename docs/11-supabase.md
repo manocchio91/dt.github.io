@@ -33,7 +33,8 @@ Docker non era attivo, quindi non è stato avviato uno stack Supabase locale. Le
 2. Applica le migrazioni in ordine: `supabase/migrations/*.sql` (CLI: `npx supabase link` poi `npx supabase db push`), quindi `supabase/seed/demo_seed.sql`.
 3. In Authentication → URL configuration aggiungi l’origine dell’app e `/accesso` tra i redirect.
 4. Copia `.env.example` in `.env.local` e imposta `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (mai la service role key nel client).
-5. Avvia l’app, registrati, crea l’organizzazione da **/accesso**, poi “Copia qui i progetti di questo browser” o “Carica demo”.
+5. Avvia l’app, registrati, crea l’organizzazione da **/accesso**; scegli cosa importare dai dati salvati come ospite (B-121) oppure usa “Carica demo”.
+6. Pubblica le Edge Function `media-gateway` e `media-retention` e pianifica la pulizia (vedi [13](13-foto-documenti-storage-privacy.md)).
 
 ## Limiti noti
 

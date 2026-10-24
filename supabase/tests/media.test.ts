@@ -47,6 +47,13 @@ async function newMedia(over: Record<string, unknown> = {}, project = agri, org 
   return row as typeof row & { id: string; storage_path: string };
 }
 
+/** Uscita dalla quarantena: solo il servizio (gateway), dopo la validazione. */
+async function confirmAsService(id: string, back: { id: string } | 'superuser' = 'superuser') {
+  await actAs(db, 'service');
+  await db.query(`update media_assets set status = 'attivo', validated_at = now() where id = $1`, [id]);
+  await actAs(db, back);
+}
+
 const putObject = (path: string) => db.query(`insert into storage.objects (bucket_id, name) values ('project-media', $1)`, [path]);
 const objects = async () => (await db.query<{ name: string }>('select name from storage.objects order by name')).rows.map((r) => r.name);
 const status = async (id: string) => {
@@ -79,16 +86,36 @@ describe('Caricamento: prima la scheda con contesto, poi l’oggetto', () => {
     await actAs(db, { id: U.editor });
     const m = await newMedia({ zone_ref: agri.agri!.zones[0]!.id, observation_ref: agri.agri!.observations[0]!.id });
     await putObject(m.storage_path);
-    await db.query(`update media_assets set status = 'attivo' where id = $1`, [m.id]);
-    await actAs(db, { id: U.viewer });
+    // B-124: l'autore non può far uscire il file dalla quarantena da solo
+    await expect(db.query(`update media_assets set status = 'attivo' where id = $1`, [m.id])).rejects.toThrow(/validazione del server/);
+    await confirmAsService(m.id, { id: U.viewer });
     expect((await db.query('select id from media_assets where id = $1', [m.id])).rows).toHaveLength(1);
-    expect(await objects()).toContain(m.storage_path);
+    // i client non leggono direttamente gli oggetti: la consultazione passa dal gateway
+    expect(await objects()).not.toContain(m.storage_path);
   });
 
-  it('non si conferma un caricamento senza oggetto nello storage', async () => {
+  it('un file in quarantena non è visibile agli altri membri', async () => {
+    await actAs(db, { id: U.editor });
+    const q = await newMedia();
+    await putObject(q.storage_path);
+    expect(await objects()).toContain(q.storage_path); // l'autore lo vede per poterlo annullare
+    await actAs(db, { id: U.viewer });
+    expect((await db.query('select id from media_assets where id = $1', [q.id])).rows).toEqual([]);
+    expect(await objects()).not.toContain(q.storage_path);
+  });
+
+  it('la validazione non si può falsificare dal client', async () => {
+    await actAs(db, { id: U.editor });
+    await expect(newMedia({ validation: { sha256_verificato: true } })).rejects.toThrow(/solo dal servizio/);
+    const m = await newMedia();
+    await expect(db.query(`update media_assets set validation = '{"ok":true}' where id = $1`, [m.id])).rejects.toThrow(/solo dal servizio/);
+  });
+
+  it('nemmeno il servizio conferma un caricamento senza oggetto nello storage', async () => {
     await actAs(db, { id: U.editor });
     const m = await newMedia();
-    await expect(db.query(`update media_assets set status = 'attivo' where id = $1`, [m.id])).rejects.toThrow(/dopo l'invio del file/);
+    await actAs(db, 'service');
+    await expect(db.query(`update media_assets set status = 'attivo' where id = $1`, [m.id])).rejects.toThrow(/Oggetto non presente/);
   });
 
   it('un oggetto senza scheda, o con scheda già attiva, non si carica', async () => {
@@ -106,7 +133,7 @@ describe('Caricamento: prima la scheda con contesto, poi l’oggetto', () => {
     await actAs(db, { id: U.approver });
     const m = await newMedia({ uploaded_by: U.approver, mime: 'application/pdf', category: 'relazione_tecnica', workflow_stage: 'revisione', original_name: 'relazione.pdf' });
     await putObject(m.storage_path);
-    await db.query(`update media_assets set status = 'attivo' where id = $1`, [m.id]);
+    await confirmAsService(m.id);
     expect(await status(m.id)).toBe('attivo');
   });
 
@@ -207,12 +234,15 @@ describe('Isolamento tra organizzazioni', () => {
   it('revoca: chi viene rimosso dall’organizzazione perde subito lettura e firma', async () => {
     await actAs(db, { id: U.admin });
     await db.query(`select public.add_member_by_email($1, 'outsider@media.test', 'viewer')`, [orgA]);
+    await actAs(db, 'superuser');
+    const active = (await db.query<{ id: string }>(`select id from media_assets where status = 'attivo' and organization_id = $1 limit 1`, [orgA])).rows[0]!.id;
     await actAs(db, { id: U.outsider });
-    expect((await objects()).length).toBeGreaterThan(0);
+    expect((await db.query<{ p: string }>('select public.log_media_access($1) as p', [active])).rows[0]!.p).toBeTruthy();
     await actAs(db, { id: U.admin });
     await db.query('delete from memberships where organization_id = $1 and user_id = $2', [orgA, U.outsider]);
     await actAs(db, { id: U.outsider });
-    expect(await objects()).toEqual([]);
+    await expect(db.query('select public.log_media_access($1)', [active])).rejects.toThrow(/non disponibile/);
+    expect((await db.query('select id from media_assets')).rows).toEqual([]);
   });
 });
 
@@ -223,8 +253,7 @@ describe('Consultazione ed eliminazione', () => {
     await actAs(db, { id: U.editor });
     m = await newMedia({ description: 'Testo da non conservare nel registro' });
     await putObject(m.storage_path);
-    await db.query(`update media_assets set status = 'attivo' where id = $1`, [m.id]);
-    await actAs(db, { id: U.viewer });
+    await confirmAsService(m.id, { id: U.viewer });
     const r = await db.query<{ p: string }>('select public.log_media_access($1) as p', [m.id]);
     expect(r.rows[0]!.p).toBe(m.storage_path);
   });
@@ -232,21 +261,25 @@ describe('Consultazione ed eliminazione', () => {
   it('solo l’amministratore avvia l’eliminazione; l’editor no', async () => {
     await actAs(db, { id: U.editor });
     await expect(db.query(`update media_assets set status = 'eliminazione_in_corso' where id = $1`, [m.id])).rejects.toThrow(/Solo un amministratore/);
+    await expect(db.query('select public.media_authorize_delete($1)', [m.id])).rejects.toThrow(/Solo un amministratore/);
     await expect(db.query(`delete from storage.objects where name = $1`, [m.storage_path])).resolves.toMatchObject({ affectedRows: 0 });
   });
 
-  it('eliminazione in tre passi; la riga non sparisce finché l’oggetto esiste (errori parziali)', async () => {
+  it('eliminazione: autorizzazione dell’admin (con audit) poi servizio; la scheda resta finché l’oggetto esiste', async () => {
     await actAs(db, { id: U.admin });
-    await db.query(`update media_assets set status = 'eliminazione_in_corso' where id = $1`, [m.id]);
-    // durante l'eliminazione i membri non amministratori non vedono l'oggetto né firmano nuovi URL
+    expect((await db.query<{ p: string }>('select public.media_authorize_delete($1) as p', [m.id])).rows[0]!.p).toBe(m.storage_path);
+    // ripetibile: una seconda autorizzazione non fallisce (ripresa dopo errore parziale)
+    await db.query('select public.media_authorize_delete($1)', [m.id]);
+    // durante l'eliminazione nessuno firma nuovi URL
     await actAs(db, { id: U.viewer });
-    expect(await objects()).not.toContain(m.storage_path);
     await expect(db.query('select public.log_media_access($1)', [m.id])).rejects.toThrow(/non disponibile/);
-    // passo 3 prima del 2: rifiutato, così un errore dello storage non lascia oggetti orfani
+    // nessun client cancella scheda o oggetto direttamente
     await actAs(db, { id: U.admin });
     expect((await db.query('delete from media_assets where id = $1', [m.id])).affectedRows).toBe(0);
+    expect((await db.query('delete from storage.objects where name = $1', [m.storage_path])).affectedRows).toBe(0);
     expect(await status(m.id)).toBe('eliminazione_in_corso');
-    await actAs(db, { id: U.admin });
+    // il servizio completa: oggetto, poi scheda
+    await actAs(db, 'service');
     expect((await db.query('delete from storage.objects where name = $1', [m.storage_path])).affectedRows).toBe(1);
     expect((await db.query('delete from media_assets where id = $1', [m.id])).affectedRows).toBe(1);
     expect(await status(m.id)).toBeNull();
@@ -255,7 +288,7 @@ describe('Consultazione ed eliminazione', () => {
   it('audit con informazioni minime: niente nome, descrizione o percorso', async () => {
     await actAs(db, { id: U.admin });
     const rows = (await db.query<{ action: string; details: Record<string, unknown> }>(`select action, details from audit_logs where entity = 'media_assets' and entity_id = $1 order by occurred_at, id`, [m.id])).rows;
-    expect(rows.map((r) => r.action)).toEqual(['caricamento', 'consultazione', 'eliminazione_avviata', 'eliminazione_completata']);
+    expect(rows.map((r) => r.action)).toEqual(['validazione_superata', 'consultazione', 'eliminazione_avviata', 'eliminazione_completata']);
     const all = JSON.stringify(rows);
     expect(all).not.toContain('Testo da non conservare');
     expect(all).not.toContain(m.storage_path);
@@ -276,9 +309,12 @@ describe('Consultazione ed eliminazione', () => {
   });
 
   it('file oltre il periodo di conservazione elencati agli amministratori', async () => {
-    await actAs(db, 'superuser');
+    await actAs(db, { id: U.editor });
+    const fresh = await newMedia();
+    await putObject(fresh.storage_path);
+    await confirmAsService(fresh.id);
     await db.query(`alter table media_assets disable trigger media_assets_guard`);
-    const old = (await db.query<{ id: string }>(`select id from media_assets where status = 'attivo' limit 1`)).rows[0]!.id;
+    const old = fresh.id;
     await db.query(`update media_assets set retention_until = current_date - 1 where id = $1`, [old]);
     await db.query(`alter table media_assets enable trigger media_assets_guard`);
     await actAs(db, { id: U.admin });

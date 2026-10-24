@@ -159,7 +159,7 @@ test.describe('Organizzazione (backend Supabase simulato)', () => {
     await page.getByTestId('file-input').setInputFiles({ name: 'piazza.jpg', mimeType: 'image/jpeg', buffer: jpegWithGps() });
     await page.getByRole('button', { name: 'Salva e carica' }).click();
     await expect(page.getByText('Sul server (privato)')).toBeVisible();
-    expect(state.mediaCalls.filter((c) => /^(POST|UPLOAD|PATCH)/.test(c)).map((c) => c.split(' ')[0])).toEqual(['POST', 'UPLOAD', 'PATCH']);
+    expect(state.mediaCalls.filter((c) => /^(POST|UPLOAD|PATCH|GATEWAY complete)/.test(c)).map((c) => c.split(' ')[0])).toEqual(['POST', 'UPLOAD', 'GATEWAY']);
     const stored = [...state.objects.values()][0]!.bytes;
     expect(stored.includes(Buffer.from('Exif'))).toBe(false);
 
@@ -167,7 +167,7 @@ test.describe('Organizzazione (backend Supabase simulato)', () => {
     const img = page.locator('main li img');
     await expect(img).toBeVisible();
     const signed = (await img.getAttribute('src'))!;
-    expect(state.mediaCalls).toContain('RPC log_media_access');
+    expect(state.mediaCalls).toContain('AUDIT consultazione'); // la firma passa dal gateway, che registra prima l'accesso
     expect((await statusOf(page, signed))).toBe(200);
 
     state.clockOffsetMs = 61_000; // il link dura 60 secondi

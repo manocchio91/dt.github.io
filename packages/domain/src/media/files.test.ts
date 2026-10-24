@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error libreria senza tipi, usata solo nei test per scrivere/leggere EXIF reali
 import piexif from 'piexifjs';
-import { checkFile, normalizeFileName, sniffKind, stripMetadata, stripPngMetadata, stripWebpMetadata } from './files';
+import { checkFile, inspectContent, inspectPdf, normalizeFileName, sniffKind, stripMetadata, stripPngMetadata, stripWebpMetadata } from './files';
 
 /** JPEG 1×1 reale (baseline). */
 const TINY_JPEG_B64 =
@@ -134,5 +134,28 @@ describe('Tipo reale del file e blocchi di sicurezza', () => {
     expect(normalizeFileName('C:\\dati\\Relazione Geologica – Città (v2).PDF')).toBe('relazione-geologica-citta-v2.pdf');
     expect(normalizeFileName('../../etc/passwd')).toBe('passwd');
     expect(normalizeFileName('.....jpg')).toBe('jpg');
+  });
+});
+
+describe('PDF: controllo euristico (non è una sanitizzazione)', () => {
+  const pdf = (body: string) => new TextEncoder().encode(`%PDF-1.7\n${body}\n%%EOF`);
+
+  it('rifiuta JavaScript, azioni di avvio, allegati incorporati, contenuti attivi e cifratura', () => {
+    expect(inspectPdf(pdf('<< /OpenAction << /S /JavaScript /JS (app.alert(1)) >> >>'))).toContain('JavaScript incorporato');
+    expect(inspectPdf(pdf('<< /JS 12 0 R >>'))).toContain('JavaScript incorporato');
+    expect(inspectPdf(pdf('<< /S /Launch /F (cmd.exe) >>'))).toContain('azioni che avviano programmi');
+    expect(inspectPdf(pdf('<< /Names << /EmbeddedFiles 5 0 R >> >>'))).toContain('file allegati incorporati');
+    expect(inspectPdf(pdf('<< /Type /Annot /Subtype /RichMedia >>'))).toContain('contenuti multimediali attivi');
+    expect(inspectPdf(pdf('trailer << /Encrypt 9 0 R >>'))).toContain('cifratura (il contenuto non può essere verificato)');
+  });
+
+  it('accetta un PDF semplice e dichiara che i metadati restano', () => {
+    const plain = pdf('1 0 obj << /Type /Catalog >> endobj 2 0 obj << /Author (Mario Rossi) /Producer (Writer) >> endobj');
+    expect(inspectPdf(plain)).toEqual([]);
+    expect(inspectContent(plain, 'application/pdf')).toEqual([]);
+    // i metadati non vengono toccati: lo dichiara stripMetadata
+    expect(stripMetadata(plain, 'application/pdf')).toMatchObject({ stripped: false, removed: [] });
+    expect(new TextDecoder().decode(stripMetadata(plain, 'application/pdf').bytes)).toContain('Mario Rossi');
+    expect(inspectContent(pdf('<< /JS (x) >>'), 'application/pdf')[0]).toMatch(/PDF non ammesso: contiene JavaScript incorporato/);
   });
 });

@@ -8,6 +8,8 @@ In M0 lo schema **non era collegato**: l'app usa `LocalRepository` (IndexedDB) c
 
 **B-109:** la migrazione [`20261024000004_media.sql`](../supabase/migrations/20261024000004_media.sql) estende `media_assets` (contesto obbligatorio, stato `caricamento → attivo → eliminazione_in_corso`, posizione solo con consenso, retention), aggiunge impostazioni per organizzazione (`media_max_bytes`, `media_retention_years`), sostituisce le policy di storage con regole legate alla scheda, audit minimo e RPC `log_media_access` / `media_due_for_deletion`. Dettagli in [13-foto-documenti-storage-privacy.md](13-foto-documenti-storage-privacy.md).
 
+**B-124/B-125:** la migrazione [`20261024000005_media_gateway_retention.sql`](../supabase/migrations/20261024000005_media_gateway_retention.sql) aggiunge `validated_at` e `validation`, riserva al servizio l’uscita dalla quarantena, toglie ai client la lettura diretta degli oggetti, aggiunge le RPC `media_authorize_complete`, `media_authorize_delete`, `media_expiring` e le regole sulla data di conservazione.
+
 ## Entità e relazioni
 
 ```

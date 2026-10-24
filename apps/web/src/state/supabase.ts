@@ -30,4 +30,4 @@ export function getSupabase(): SupabaseClient | null {
 }
 
 /** Superficie minima del client usata dai repository: facilita i test con un doppio. */
-export type SupabaseLike = Pick<SupabaseClient, 'from' | 'rpc' | 'storage'>;
+export type SupabaseLike = Pick<SupabaseClient, 'from' | 'rpc' | 'storage' | 'functions'>;

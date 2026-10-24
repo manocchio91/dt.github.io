@@ -72,7 +72,7 @@ export async function handleMedia(
     return true;
   }
 
-  const isMedia = p === '/rest/v1/media_assets' || p === '/rest/v1/rpc/log_media_access' || p.startsWith('/storage/v1/object');
+  const isMedia = p === '/rest/v1/media_assets' || p === '/rest/v1/rpc/log_media_access' || p.startsWith('/storage/v1/object') || p === '/functions/v1/media-gateway';
   if (!isMedia) return false;
   if (!userId) return json(route, 401, { message: 'unauthorized' }), true;
   const row = (id: string | null) => (id ? state.media[id] : undefined);
@@ -100,7 +100,8 @@ export async function handleMedia(
       state.mediaCalls.push(`PATCH media_assets ${JSON.stringify(v.status ?? 'contesto')}`);
       const allowed = r && ((r.uploaded_by === userId && rank(roleOf(r)) >= 1) || roleOf(r) === 'admin');
       if (!allowed) return json(route, 200, []), true;
-      if (v.status === 'attivo' && !(r.status === 'caricamento' && state.objects.has(r.storage_path as string))) return json(route, 400, { message: 'stato non consentito' }), true;
+      // B-124: l'uscita dalla quarantena è riservata al servizio (gateway)
+      if (v.status === 'attivo') return json(route, 400, { message: 'Il file esce dalla quarantena solo dopo la validazione del server.' }), true;
       if (v.status === 'eliminazione_in_corso' && roleOf(r) !== 'admin') return json(route, 400, { message: 'Solo un amministratore può eliminare i file.' }), true;
       Object.assign(r, v);
       return json(route, 200, [r]), true;
@@ -122,15 +123,46 @@ export async function handleMedia(
     return json(route, 200, r.storage_path), true;
   }
 
+  // B-124: i client non firmano più direttamente (nessuna policy di lettura sugli oggetti)
   if (method === 'POST' && p.startsWith('/storage/v1/object/sign/project-media/')) {
-    const path = decodeURIComponent(p.replace('/storage/v1/object/sign/project-media/', ''));
-    const r = Object.values(state.media).find((m) => m.storage_path === path);
-    const visible = r && ((r.status === 'attivo' && rank(roleOf(r)) >= 0) || (r.status === 'eliminazione_in_corso' && roleOf(r) === 'admin'));
-    if (!visible || !state.objects.has(path)) return json(route, 400, { statusCode: '404', error: 'not_found', message: 'Object not found' }), true;
-    const { expiresIn } = req.postDataJSON() as { expiresIn: number };
-    const token = `t${Math.random().toString(36).slice(2)}`;
-    state.tokens.set(token, { path, exp: now + expiresIn * 1000 });
-    return json(route, 200, { signedURL: `/object/sign/project-media/${encodeURIComponent(path).replace(/%2F/g, '/')}?token=${token}` }), true;
+    state.mediaCalls.push('SIGN diretta rifiutata');
+    return json(route, 400, { statusCode: '404', error: 'not_found', message: 'Object not found' }), true;
+  }
+
+  if (method === 'POST' && p === '/functions/v1/media-gateway') {
+    const { action, mediaId } = req.postDataJSON() as { action: string; mediaId: string };
+    state.mediaCalls.push(`GATEWAY ${action}`);
+    const r = row(mediaId);
+    if (!r) return json(route, 404, { error: 'File non trovato.' }), true;
+    if (action === 'complete') {
+      if (r.uploaded_by !== userId || rank(roleOf(r)) < 1) return json(route, 403, { error: 'Non autorizzato.' }), true;
+      if (r.status === 'attivo') return json(route, 200, { status: 'attivo', idempotent: true }), true;
+      const obj = state.objects.get(r.storage_path as string);
+      if (!obj) return json(route, 409, { error: 'Oggetto non presente.' }), true;
+      if (obj.bytes.includes(Buffer.from('Exif'))) {
+        state.objects.delete(r.storage_path as string);
+        delete state.media[mediaId];
+        return json(route, 422, { error: 'File rifiutato dalla validazione del server.', details: ['Il file contiene ancora metadati.'] }), true;
+      }
+      r.status = 'attivo';
+      return json(route, 200, { status: 'attivo', idempotent: false }), true;
+    }
+    if (action === 'sign') {
+      if (r.status !== 'attivo' || rank(roleOf(r)) < 0) return json(route, 403, { error: 'File non disponibile.' }), true;
+      state.mediaCalls.push('AUDIT consultazione');
+      const token = `t${Math.random().toString(36).slice(2)}`;
+      const path = r.storage_path as string;
+      state.tokens.set(token, { path, exp: now + 60_000 });
+      return json(route, 200, { signedUrl: `http://supabase.e2e.test/storage/v1/object/sign/project-media/${path}?token=${token}`, expiresInSeconds: 60 }), true;
+    }
+    if (action === 'delete') {
+      if (roleOf(r) !== 'admin') return json(route, 403, { error: 'Solo un amministratore può eliminare i file.' }), true;
+      r.status = 'eliminazione_in_corso';
+      state.objects.delete(r.storage_path as string);
+      delete state.media[mediaId];
+      return json(route, 200, { deleted: true }), true;
+    }
+    return json(route, 400, { error: 'Azione sconosciuta' }), true;
   }
 
   if (method === 'POST' && p.startsWith('/storage/v1/object/project-media/')) {

@@ -96,10 +96,34 @@ function fakeMediaServer(role: OrgRole, userId: string, org = ORG_A) {
   };
   const client = {
     from,
-    rpc: async (_fn: string, args: { p_media: string }) => {
-      calls.push('rpc:log_media_access');
-      const r = rows[args.p_media];
+    rpc: async (fn: string, args: { p_media?: string }) => {
+      calls.push(`rpc:${fn}`);
+      if (fn === 'media_expiring') return { data: [], error: null };
+      const r = rows[args.p_media ?? ''];
       return r && r.status === 'attivo' ? { data: r.storage_path, error: null } : { data: null, error: { message: 'File non disponibile.' } };
+    },
+    // gateway server-side (Edge Function media-gateway): conferma dopo validazione, firma con audit, eliminazione
+    functions: {
+      invoke: async (_name: string, { body }: { body: { action: string; mediaId: string } }) => {
+        calls.push(`gateway:${body.action}`);
+        const r = rows[body.mediaId];
+        const fail = (status: number, error: string) => ({ data: null, error: { message: 'non-2xx', context: { status, json: async () => ({ error }) } } });
+        if (!r) return fail(404, 'File non trovato.');
+        if (body.action === 'complete') {
+          if (r.uploaded_by !== userId) return fail(403, 'Non autorizzato.');
+          if (!objects.has(r.storage_path as string)) return fail(409, 'Oggetto non presente.');
+          r.status = 'attivo';
+          return { data: { status: 'attivo', idempotent: false }, error: null };
+        }
+        if (body.action === 'sign') {
+          if (r.status !== 'attivo') return fail(403, 'File non disponibile.');
+          return { data: { signedUrl: `https://storage.test/${r.storage_path}?exp=1`, expiresInSeconds: 60 }, error: null };
+        }
+        if (role !== 'admin') return fail(403, 'Solo un amministratore può eliminare i file.');
+        objects.delete(r.storage_path as string);
+        delete rows[body.mediaId];
+        return { data: { deleted: true }, error: null };
+      },
     },
     storage: {
       from: () => ({
@@ -198,7 +222,7 @@ describe('Organizzazione: ruoli e server', () => {
     await screen.findByText('File accettato');
     await user.click(screen.getByRole('button', { name: 'Salva e carica' }));
     await screen.findByText('Sul server (privato)');
-    expect(s.calls.filter((c) => !c.endsWith(':select'))).toEqual(['media_assets:insert', 'storage:upload', 'media_assets:update']);
+    expect(s.calls.filter((c) => !c.endsWith(':select'))).toEqual(['media_assets:insert', 'storage:upload', 'gateway:complete']);
     expect(screen.getByRole('button', { name: 'Modifica collegamenti' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Elimina' })).toBeNull();
     expect(await localMediaStore().list(urban.project.id)).toEqual([]);
@@ -215,7 +239,7 @@ describe('Organizzazione: ruoli e server', () => {
     expect(screen.getByRole('button', { name: 'Scarica' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Modifica collegamenti|Elimina/ })).toBeNull();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Mostra anteprima' }));
-    await waitFor(() => expect(s.calls).toContain('rpc:log_media_access'));
+    await waitFor(() => expect(s.calls).toContain('gateway:sign'));
     expect(await screen.findByText('Link temporaneo: scade dopo 60 secondi.')).toBeInTheDocument();
   });
 
@@ -229,7 +253,7 @@ describe('Organizzazione: ruoli e server', () => {
     await user.click(screen.getByRole('button', { name: 'Elimina' }));
     await user.click(screen.getByRole('button', { name: 'Elimina definitivamente' }));
     await waitFor(() => expect(screen.queryByText('Da eliminare')).toBeNull());
-    expect(s.calls.filter((c) => !c.endsWith(':select'))).toEqual(['media_assets:update', 'storage:remove', 'media_assets:delete']);
+    expect(s.calls.filter((c) => !c.endsWith(':select') && c !== 'rpc:media_expiring')).toEqual(['gateway:delete']);
     expect(s.objects.size).toBe(0);
   });
 });

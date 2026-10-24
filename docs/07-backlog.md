@@ -40,8 +40,9 @@ P0 = Milestone 0 (integrità) · P1 = Milestone 1 (MVP pilota) · P2 = Milestone
 | B-108 | Workflow Bozza → … → Chiusura con approval_events | F27 |
 | B-109 | Foto e documenti: tipo reale, EXIF/GPS rimossi, consenso posizione, contesto obbligatorio, retention, eliminazione verificabile, audit, offline — **fatto (Beta)**, vedi docs/13; verifica su Supabase reale in docs/14 | F22 |
 | B-123 | Scansione malware dei file caricati (nessun antivirus presente oggi) | F22 |
-| B-124 | Edge Function: firma URL con audit obbligatorio e verifica dei byte lato server | F22 |
-| B-125 | Job pianificato di eliminazione a fine conservazione (pg_cron o Edge Function) | F22 |
+| B-124 | Gateway server-side: quarantena, verifica byte/impronta/metadati, firma con audit obbligatorio, eliminazione — **fatto** (logica testata su PGlite; Edge Function da provare su Supabase reale) | F22 |
+| B-125 | Conservazione: data configurabile, anteprima admin, job di eliminazione con ripresa — **fatto** (pianificazione pg_cron da attivare sul progetto) | F22 |
+| B-127 | Sanitizzazione verificata dei PDF (metadati, XMP, allegati, JavaScript anche nei flussi compressi) | F22 |
 | B-126 | Conversione reale HEIC → JPEG (oggi rifiutato con istruzioni) | F22 |
 | B-110 | PWA: service worker, sync differita, avviso dati obsoleti | F28 |
 | B-111 | Casi studio strutturati con punteggio di comparabilità | F20 |
@@ -53,7 +54,7 @@ P0 = Milestone 0 (integrità) · P1 = Milestone 1 (MVP pilota) · P2 = Milestone
 | B-117 | Satellite: prodotto LST / Sentinel-2 con data, risoluzione, nuvolosità | F06 |
 | B-118 | Rifugi climatici su rete pedonale | F10 |
 | B-120 | UI role-aware: nascondere i comandi di modifica ai viewer — **fatto** (RLS resta la protezione principale) | F26 |
-| B-121 | Copia facoltativa delle preferenze da ospite all’account al primo accesso | F01 |
+| B-121 | Importazione su conferma di preferenze, progetti e file salvati da ospite (selezione, riepilogo, annullamento) — **fatto** | F01 |
 | B-122 | Misurare con utenti reali i tempi di onboarding (< 2 min) e primo scenario (< 5 min) | F01 |
 | B-119 | Riapplicare gli interventi di uno scenario a una nuova versione della baseline (nuovo scenario, stessi interventi) | F14 |
 

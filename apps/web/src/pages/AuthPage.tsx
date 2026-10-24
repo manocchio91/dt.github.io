@@ -1,12 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useAuth, ROLE_LABEL, type OrgRole } from '../state/auth';
-import { useStore } from '../state/store';
-import { LocalRepository } from '../state/repository';
 import { Alert, Field, Section, StatusBadge } from '../components/ui';
+import { GuestImport } from '../components/GuestImport';
 
 export function AuthPage() {
   const auth = useAuth();
-  const store = useStore();
   const [mode, setMode] = useState<'login' | 'signup' | 'magic'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -57,15 +55,6 @@ export function AuthPage() {
       }
     });
   };
-
-  const importLocal = () =>
-    run(async () => {
-      const local = await new LocalRepository().list();
-      const existing = new Set(store.projects.map((p) => p.project.id));
-      const todo = local.filter((b) => !existing.has(b.project.id));
-      for (const b of todo) await store.save(b);
-      return todo.length ? `${todo.length} progetti copiati nell’organizzazione. Le copie locali restano nel browser.` : 'Nessun progetto locale da copiare.';
-    });
 
   return (
     <div className="space-y-4">
@@ -170,13 +159,12 @@ export function AuthPage() {
                 I progetti sono salvati nel database dell’organizzazione e visibili ai suoi membri secondo il ruolo. Ogni modifica è versionata; baseline, decisioni e registro di audit sono protetti
                 lato server.
               </p>
-              {(auth.current.role === 'editor' || auth.current.role === 'approver' || auth.current.role === 'admin') && (
-                <button type="button" className="btn-secondary" disabled={busy} onClick={importLocal}>
-                  Copia qui i progetti di questo browser
-                </button>
-              )}
             </Section>
           )}
+
+          {auth.current && <GuestImport />}
+
+          {auth.current?.role === 'admin' && auth.client && <RetentionDefault orgId={auth.current.organizationId} />}
 
           {auth.current?.role === 'admin' && (
             <Section title="Membri">
@@ -213,5 +201,41 @@ export function AuthPage() {
         </>
       )}
     </div>
+  );
+}
+
+/** Periodo di conservazione predefinito dei file dell'organizzazione (solo amministratori). */
+function RetentionDefault({ orgId }: { orgId: string }) {
+  const auth = useAuth();
+  const [years, setYears] = useState<number | null>(null);
+  const [saved, setSaved] = useState<string | null>(null);
+  useEffect(() => {
+    auth.client
+      ?.from('organizations')
+      .select('media_retention_years')
+      .eq('id', orgId)
+      .maybeSingle()
+      .then(({ data }) => setYears((data as { media_retention_years?: number } | null)?.media_retention_years ?? 5));
+  }, [auth.client, orgId]);
+  if (years === null) return null;
+  return (
+    <Section title="Conservazione dei file">
+      <div className="flex flex-wrap items-end gap-2">
+        <Field label="Conserva i nuovi file per (anni)" htmlFor="ret-years" hint="Vale per i file caricati da ora in poi; la data dei singoli file si modifica nella pagina Foto e documenti.">
+          <input id="ret-years" type="number" min={1} max={30} className="input w-28" value={years} onChange={(e) => setYears(Number(e.target.value))} />
+        </Field>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={async () => {
+            const { error } = await auth.client!.from('organizations').update({ media_retention_years: years }).eq('id', orgId);
+            setSaved(error ? `Non salvato: ${error.message}` : 'Periodo di conservazione aggiornato.');
+          }}
+        >
+          Salva
+        </button>
+      </div>
+      {saved && <p className="text-sm" role="status">{saved}</p>}
+    </Section>
   );
 }

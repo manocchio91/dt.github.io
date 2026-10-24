@@ -1,5 +1,15 @@
 {
   "extends": "../tsconfig.base.json",
-  "compilerOptions": { "types": ["node"] },
-  "include": ["tests", "vitest.config.ts", "../apps/web/src/vite-env.d.ts"]
+  "compilerOptions": {
+    "types": [
+      "node"
+    ],
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "tests",
+    "vitest.config.ts",
+    "functions/_shared",
+    "../apps/web/src/vite-env.d.ts"
+  ]
 }
