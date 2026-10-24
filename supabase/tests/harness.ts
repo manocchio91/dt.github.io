@@ -61,13 +61,21 @@ alter default privileges in schema public grant all on sequences to service_role
 alter default privileges in schema public grant all on functions to service_role;
 `;
 
-export async function createDb(): Promise<PGlite> {
+/** upTo: applica le migrazioni fino a quella indicata (prefisso del nome) e salta il seed: per provare gli aggiornamenti. */
+/** Riapre lo stesso database in una NUOVA sessione (come una nuova connessione al server). */
+export async function reopen(db: PGlite): Promise<PGlite> {
+  const data = await db.dumpDataDir();
+  return PGlite.create({ loadDataDir: data, extensions: { postgis, pgcrypto } });
+}
+
+export async function createDb(opts: { upTo?: string } = {}): Promise<PGlite> {
   const db = await PGlite.create({ extensions: { postgis, pgcrypto } });
   await db.exec(SUPABASE_STUB);
   const dir = join(import.meta.dirname, '..', 'migrations');
-  for (const f of readdirSync(dir).filter((x) => x.endsWith('.sql')).sort()) {
+  for (const f of readdirSync(dir).filter((x) => x.endsWith('.sql') && (!opts.upTo || x.slice(0, opts.upTo.length) <= opts.upTo)).sort()) {
     await db.exec(readFileSync(join(dir, f), 'utf8'));
   }
+  if (opts.upTo) return db;
   // il seed di riferimento deve applicarsi senza errori
   const seedDir = join(import.meta.dirname, '..', 'seed');
   for (const f of readdirSync(seedDir).filter((x) => x.endsWith('.sql')).sort()) {
