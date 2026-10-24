@@ -2,25 +2,13 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { PGlite } from '@electric-sql/pglite';
 import { actAs, createDb } from './harness';
 
-/** Migrazione 0008: correzioni del Security Advisor (verificate su PGlite; su Supabase con db advisors). */
+/** Migrazione 0008: correzioni del Security Advisor applicabili senza essere proprietari degli oggetti di PostGIS. */
 let db: PGlite;
 beforeAll(async () => {
   db = await createDb();
 }, 180_000);
 
 describe('Correzioni del Security Advisor', () => {
-  it('spatial_ref_sys: RLS attiva, lettura consentita, nessuna scrittura per anon e authenticated', async () => {
-    await actAs(db, 'superuser');
-    const t = (await db.query<{ rls: boolean }>(`select relrowsecurity as rls from pg_class where oid = 'public.spatial_ref_sys'::regclass`)).rows[0]!;
-    expect(t.rls).toBe(true);
-    for (const who of ['anon', { id: '00000000-0000-4000-8000-00000000a11c' }] as const) {
-      await actAs(db, who);
-      await expect(db.query('select srid from spatial_ref_sys where srid = 4326')).resolves.toMatchObject({ rows: [{ srid: 4326 }] });
-      await expect(db.query(`delete from spatial_ref_sys where srid = 4326`)).rejects.toThrow();
-      await expect(db.query(`insert into spatial_ref_sys (srid, auth_name, auth_srid) values (999999, 'x', 1)`)).rejects.toThrow();
-    }
-  });
-
   it('search_path fissato sulle funzioni segnalate', async () => {
     await actAs(db, 'superuser');
     const r = await db.query<{ f: string; cfg: string[] | null }>(
@@ -31,11 +19,14 @@ describe('Correzioni del Security Advisor', () => {
     for (const row of r.rows) expect(row.cfg, row.f).toContain('search_path=public');
   });
 
-  it('st_estimatedextent non eseguibile da anon e authenticated', async () => {
+  it('le funzioni continuano a funzionare con il search_path fisso', async () => {
     await actAs(db, 'superuser');
-    const r = await db.query<{ anon: boolean; auth: boolean }>(
-      `select bool_or(has_function_privilege('anon', p.oid, 'execute')) anon, bool_or(has_function_privilege('authenticated', p.oid, 'execute')) auth from pg_proc p where p.proname = 'st_estimatedextent'`,
-    );
-    expect(r.rows[0]).toEqual({ anon: false, auth: false });
+    const r = await db.query<{ u: string | null; bad: string | null }>(`select app.try_uuid('00000000-0000-4000-8000-000000000001')::text u, app.try_uuid('x')::text bad`);
+    expect(r.rows[0]).toEqual({ u: '00000000-0000-4000-8000-000000000001', bad: null });
+    // is_service_role è usata dentro funzioni SECURITY DEFINER: per il servizio restituisce l'elenco, per un utente niente
+    await actAs(db, 'service');
+    expect((await db.query<{ r: string[] }>('select public.weather_active_locations() r')).rows[0]!.r).toEqual([]);
+    await actAs(db, { id: '00000000-0000-4000-8000-00000000a11c' });
+    expect((await db.query<{ s: boolean }>('select app.is_service_role() s')).rows[0]!.s).toBe(false);
   });
 });
