@@ -1,0 +1,190 @@
+{
+ "generatedAt": "2026-10-24",
+ "protocol": "Walk-forward con origini giornaliere; storico minimo 14 giorni, contesto 28 giorni; covariate note: solo calendario; nessun dato successivo all’origine nell’input.",
+ "dataSource": "Rianalisi Open-Meteo (ERA5/ERA5-Land, CC BY 4.0): stime da modello su cella di griglia, non misure in campo.",
+ "cases": [
+  {
+   "id": "urbano-temperatura-24h",
+   "context": "urbano",
+   "label": "Campobasso — temperatura dell’aria, orizzonte 24 h",
+   "variable": "temperatura_aria",
+   "unit": "°C",
+   "horizon": 24,
+   "period": {
+    "from": "2025-06-01T00:00:00Z",
+    "to": "2025-08-31T23:00:00Z"
+   },
+   "alertNote": "soglia dimostrativa di caldo intenso (32 °C)",
+   "results": [
+    {
+     "adapter": "baseline-persistenza",
+     "name": "Persistenza (ultimo valore)",
+     "origins": 78,
+     "mae": 4.667,
+     "mase": 5.832,
+     "meanPinball": 1.486,
+     "wql": 0.131,
+     "coverage80": 0.863,
+     "coverage98": 0.979,
+     "evaluatedPoints": 1872,
+     "alerts": {
+      "veriPositivi": 0,
+      "falsiAllarmi": 0,
+      "criticitaMancate": 19,
+      "veriNegativi": 59
+     }
+    },
+    {
+     "adapter": "baseline-persistenza-stagionale",
+     "name": "Persistenza stagionale (stessa ora del giorno prima)",
+     "origins": 78,
+     "mae": 1.734,
+     "mase": 2.166,
+     "meanPinball": 0.614,
+     "wql": 0.054,
+     "coverage80": 0.752,
+     "coverage98": 0.946,
+     "evaluatedPoints": 1872,
+     "alerts": {
+      "veriPositivi": 16,
+      "falsiAllarmi": 11,
+      "criticitaMancate": 3,
+      "veriNegativi": 48
+     }
+    }
+   ],
+   "notRun": [
+    {
+     "adapter": "mistralai/Timestral-5M",
+     "reason": "Motore Timestral non configurato (servizio non disponibile in questo ambiente)"
+    },
+    {
+     "adapter": "mistralai/Timestral-28M",
+     "reason": "Motore Timestral non configurato (servizio non disponibile in questo ambiente)"
+    }
+   ]
+  },
+  {
+   "id": "agricolo-umidita-suolo-72h",
+   "context": "agricolo",
+   "label": "Vigneto molisano — umidità del suolo 7–28 cm, orizzonte 72 h",
+   "variable": "umidita_suolo",
+   "unit": "m³/m³",
+   "horizon": 72,
+   "period": {
+    "from": "2025-06-01T00:00:00Z",
+    "to": "2025-09-15T23:00:00Z"
+   },
+   "alertNote": "soglia dimostrativa di umidità bassa (0,16 m³/m³), da sostituire con quella dell’agronomo",
+   "results": [
+    {
+     "adapter": "baseline-persistenza",
+     "name": "Persistenza (ultimo valore)",
+     "origins": 91,
+     "mae": 0.004,
+     "mase": 22.951,
+     "meanPinball": 0.002,
+     "wql": 0.02,
+     "coverage80": 0.739,
+     "coverage98": 0.895,
+     "evaluatedPoints": 6552,
+     "alerts": {
+      "veriPositivi": 66,
+      "falsiAllarmi": 0,
+      "criticitaMancate": 8,
+      "veriNegativi": 17
+     }
+    },
+    {
+     "adapter": "baseline-persistenza-stagionale",
+     "name": "Persistenza stagionale (stessa ora del giorno prima)",
+     "origins": 91,
+     "mae": 0.006,
+     "mase": 36.735,
+     "meanPinball": 0.002,
+     "wql": 0.03,
+     "coverage80": 0.715,
+     "coverage98": 0.86,
+     "evaluatedPoints": 6552,
+     "alerts": {
+      "veriPositivi": 71,
+      "falsiAllarmi": 3,
+      "criticitaMancate": 3,
+      "veriNegativi": 14
+     }
+    }
+   ],
+   "notRun": [
+    {
+     "adapter": "mistralai/Timestral-5M",
+     "reason": "Motore Timestral non configurato (servizio non disponibile in questo ambiente)"
+    },
+    {
+     "adapter": "mistralai/Timestral-28M",
+     "reason": "Motore Timestral non configurato (servizio non disponibile in questo ambiente)"
+    }
+   ]
+  },
+  {
+   "id": "agricolo-temperatura-48h",
+   "context": "agricolo",
+   "label": "Vigneto molisano — temperatura dell’aria, orizzonte 48 h",
+   "variable": "temperatura_aria",
+   "unit": "°C",
+   "horizon": 48,
+   "period": {
+    "from": "2025-06-01T00:00:00Z",
+    "to": "2025-09-15T23:00:00Z"
+   },
+   "alertNote": "soglia dimostrativa di stress termico (35 °C)",
+   "results": [
+    {
+     "adapter": "baseline-persistenza",
+     "name": "Persistenza (ultimo valore)",
+     "origins": 92,
+     "mae": 4.081,
+     "mase": 3.193,
+     "meanPinball": 1.301,
+     "wql": 0.108,
+     "coverage80": 0.862,
+     "coverage98": 0.982,
+     "evaluatedPoints": 4416,
+     "alerts": {
+      "veriPositivi": 0,
+      "falsiAllarmi": 0,
+      "criticitaMancate": 9,
+      "veriNegativi": 83
+     }
+    },
+    {
+     "adapter": "baseline-persistenza-stagionale",
+     "name": "Persistenza stagionale (stessa ora del giorno prima)",
+     "origins": 92,
+     "mae": 2.425,
+     "mase": 1.897,
+     "meanPinball": 0.847,
+     "wql": 0.07,
+     "coverage80": 0.756,
+     "coverage98": 0.957,
+     "evaluatedPoints": 4416,
+     "alerts": {
+      "veriPositivi": 6,
+      "falsiAllarmi": 12,
+      "criticitaMancate": 3,
+      "veriNegativi": 71
+     }
+    }
+   ],
+   "notRun": [
+    {
+     "adapter": "mistralai/Timestral-5M",
+     "reason": "Motore Timestral non configurato (servizio non disponibile in questo ambiente)"
+    },
+    {
+     "adapter": "mistralai/Timestral-28M",
+     "reason": "Motore Timestral non configurato (servizio non disponibile in questo ambiente)"
+    }
+   ]
+  }
+ ]
+}
