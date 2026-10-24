@@ -1,6 +1,7 @@
 import type { Page, Route } from '@playwright/test';
 import { seedCampobasso, type ProjectBundle } from '../packages/domain/src/index';
 import { handleMedia, initialMediaState, type MediaState } from './fakeMedia';
+import { handleWeather, initialWeatherState, type WeatherState } from './fakeWeather';
 
 /**
  * Backend Supabase SIMULATO per gli E2E (Auth + PostgREST minimi).
@@ -21,6 +22,7 @@ export interface FakeState extends MediaState {
   prefs: Record<string, unknown>;
   prefWrites: unknown[];
   rpcCalls: { name: string; body: unknown; status: number }[];
+  weather: WeatherState;
 }
 
 export function initialState(): FakeState {
@@ -35,6 +37,7 @@ export function initialState(): FakeState {
     prefWrites: [],
     ...initialMediaState(),
     rpcCalls: [],
+    weather: initialWeatherState(demo.project.id, ORG_A),
   };
 }
 
@@ -67,6 +70,7 @@ export async function installFakeSupabase(page: Page, state: FakeState) {
     const p = url.pathname;
     const roleIn = (org: string) => state.memberships.find((m) => m.organization_id === org && m.user_id === USER.id)?.role;
     if (await handleMedia(route, state, roleIn, authed ? USER.id : null)) return;
+    if (await handleWeather(route, state.weather, roleIn, authed ? USER.id : null)) return;
 
     if (p === '/auth/v1/token') {
       const body = req.postDataJSON() as { email?: string; password?: string };
