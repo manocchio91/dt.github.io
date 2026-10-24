@@ -331,6 +331,94 @@ await check('R1', 'Limitazione di frequenza su login errati (osservazione)', asy
   return `codici: ${codes.join(', ')} (429 = limite attivo; i limiti dipendono dalla configurazione del progetto)`;
 });
 
+// ------------------------------------------------------------ F31 previsioni
+const T5 = 'mistralai/Timestral-5M@bdd20cfc15a3fea0e4cb5ccef37f8d3ca7aa335f';
+const SEASONAL = 'baseline-persistenza-stagionale@n/a';
+const LEVELS = [0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99];
+const runRow = (model) => ({
+  organization_id: orgA,
+  project_id: proj.project.id,
+  model_version_id: model,
+  context: 'agricolo',
+  horizon: 3,
+  issued_at: '2025-09-12T23:00:00Z',
+  input_hash: `verify-${run}`,
+  data_class: 'STIMATO_DA_MODELLO',
+  lineage: { source: 'verifica automatica', period: { from: '2025-08-15', to: '2025-09-12' }, variable: 'umidita_suolo' },
+});
+async function insertOutput(client, runId) {
+  const ts = ['2025-09-13T00:00:00Z', '2025-09-13T01:00:00Z', '2025-09-13T02:00:00Z'];
+  const s = await client.from('forecast_series').insert({ run_id: runId, variable: 'umidita_suolo', unit: 'm³/m³', timestamps: ts, median: [0.15, 0.15, 0.15] }).select('id').single();
+  expect(!s.error, s.error?.message);
+  const q = await client.from('forecast_quantiles').insert(LEVELS.map((l) => ({ series_id: s.data.id, level: l, values: ts.map(() => 0.14 + l * 0.02) })));
+  expect(!q.error, q.error?.message);
+}
+let fRun, fThr;
+
+await check('F1', 'Previsioni: l’editor registra una baseline con 21 quantili', async () => {
+  const r = await E.client.from('forecast_runs').insert(runRow(SEASONAL)).select('id, started_by').single();
+  expect(!r.error, r.error?.message);
+  expect(r.data.started_by === E.id, 'started_by non è l’utente');
+  fRun = r.data.id;
+  await insertOutput(E.client, fRun);
+  const done = await E.client.from('forecast_runs').update({ status: 'completata' }).eq('id', fRun);
+  expect(!done.error, done.error?.message);
+  return 'esecuzione, serie e 21 quantili registrati';
+});
+
+await check('F2', 'Previsioni: un client non registra un’esecuzione Timestral', async () => {
+  const r = await A.client.from('forecast_runs').insert(runRow(T5));
+  expect(!!r.error, 'esecuzione Timestral accettata da un client');
+  return r.error.message;
+});
+
+await check('F3', 'Previsioni: il ruolo di servizio registra un’esecuzione Timestral', async () => {
+  const r = await admin.from('forecast_runs').insert({ ...runRow(T5), started_by: E.id }).select('id').single();
+  expect(!r.error, r.error?.message);
+  await insertOutput(admin, r.data.id);
+  return 'accettata';
+});
+
+await check('F4', 'Previsioni: esecuzione conclusa immutabile', async () => {
+  const r = await E.client.from('forecast_runs').update({ warnings: ['alterata'] }).eq('id', fRun);
+  expect(!!r.error, 'esecuzione conclusa modificata');
+  return r.error.message;
+});
+
+await check('F5', 'Previsioni: isolamento tra organizzazioni', async () => {
+  const r = await O.client.from('forecast_runs').select('id');
+  const q = await O.client.from('forecast_quantiles').select('series_id');
+  expect((r.data ?? []).length === 0 && (q.data ?? []).length === 0, 'l’esterno vede previsioni di A');
+  return '0 righe';
+});
+
+await check('F6', 'Previsioni: soglie versionate', async () => {
+  const row = { organization_id: orgA, project_id: proj.project.id, context: 'agricolo', zone: 'Zona nord', variable: 'umidita_suolo', unit: 'm³/m³', threshold: 0.16, direction: 'sotto', min_probability: 0.5, expert_role: 'agronomo', rationale: 'Verifica automatica delle soglie', set_by: E.id };
+  const t = await E.client.from('forecast_thresholds').insert(row).select('id').single();
+  expect(!t.error, t.error?.message);
+  fThr = t.data.id;
+  const u = await E.client.from('forecast_thresholds').update({ threshold: 0.2 }).eq('id', fThr);
+  expect(!!u.error, 'soglia sovrascritta');
+  return u.error.message;
+});
+
+await check('F7', 'Previsioni: avviso con verifica ex-post', async () => {
+  const a = await E.client.from('forecast_alerts').insert({ organization_id: orgA, run_id: fRun, threshold_id: fThr, zone: 'Zona nord', first_exceedance: '2025-09-13T01:00:00Z', probability: 0.6 }).select('id').single();
+  expect(!a.error, a.error?.message);
+  const bad = await E.client.from('forecast_alerts').update({ probability: 0.9 }).eq('id', a.data.id);
+  expect(!!bad.error, 'probabilità modificata');
+  const ok = await E.client.from('forecast_alerts').update({ status: 'verificato_in_campo', observed_value: 0.151 }).eq('id', a.data.id).select('reviewed_by').single();
+  expect(!ok.error && ok.data.reviewed_by === E.id, ok.error?.message ?? 'reviewed_by errato');
+  return 'probabilità bloccata, ex-post registrato';
+});
+
+await check('F8', 'Previsioni: audit visibile solo all’admin', async () => {
+  const a = await A.client.from('audit_logs').select('entity').eq('organization_id', orgA).like('entity', 'forecast%');
+  const v = await V.client.from('audit_logs').select('entity').like('entity', 'forecast%');
+  expect((a.data ?? []).length >= 4 && (v.data ?? []).length === 0, 'visibilità audit errata');
+  return `${a.data.length} righe per l’admin, 0 per il viewer`;
+});
+
 record('M12', 'Offline su smartphone e sincronizzazione', 'skip', 'manuale (docs/14)');
 record('M14', 'Pulizia a fine conservazione pianificata', 'skip', 'manuale: richiede pg_cron e segreto (docs/13)');
 record('S8', 'Magic link via email', 'skip', 'manuale: verificare la ricezione della mail di test');
