@@ -17,3 +17,7 @@ __pycache__
 *.safetensors
 services/forecasting/models
 services/forecasting/hf-cache
+
+# Supabase CLI: dati locali del progetto collegato (mai in Git)
+supabase/.temp/
+supabase/.branches/
