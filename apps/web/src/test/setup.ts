@@ -23,3 +23,10 @@ if (!HTMLDialogElement.prototype.showModal) {
 }
 
 afterEach(() => cleanup());
+
+// jsdom non implementa gli URL di oggetti: un doppio sufficiente per anteprime e download
+if (!URL.createObjectURL) {
+  let n = 0;
+  URL.createObjectURL = () => `blob:test/${++n}`;
+  URL.revokeObjectURL = () => {};
+}

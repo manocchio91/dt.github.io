@@ -45,7 +45,7 @@ describe('Rimozione metadati (EXIF/GPS)', () => {
 
   it('PDF: invariato e dichiarato non ripulito', () => {
     const pdf = Uint8Array.from([0x25, 0x50, 0x44, 0x46]);
-    expect(stripMetadata(pdf, 'application/pdf')).toEqual({ bytes: pdf, stripped: false });
+    expect(stripMetadata(pdf, 'application/pdf')).toEqual({ bytes: pdf, removed: [], stripped: false });
   });
 });
 

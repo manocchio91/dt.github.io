@@ -1,18 +1,20 @@
 import type { PGlite } from '@electric-sql/pglite';
 
 /**
- * Doppio minimale del client supabase-js (PostgREST) sopra PGlite: copre solo
- * le chiamate usate da SupabaseRepository (select/eq/maybeSingle, delete/eq/select, rpc).
- * Gli errori riportano code e message come PostgREST.
+ * Doppio minimale di supabase-js sopra PGlite: PostgREST (select/insert/update/
+ * delete con eq e returning, rpc) e Storage (upload/remove/createSignedUrl sulla
+ * tabella storage.objects, quindi con le policy RLS reali).
+ * Non riproduce la firma degli URL di Supabase: solo la verifica dei permessi.
  */
-type Result = { data: unknown; error: { code?: string; message: string } | null };
+type Err = { code?: string; message: string };
+type Result = { data: unknown; error: Err | null };
 
 const ident = (s: string) => {
   if (!/^[a-z_][a-z0-9_]*$/.test(s)) throw new Error(`identificatore non ammesso: ${s}`);
   return s;
 };
 
-async function run(db: PGlite, sql: string, params: unknown[]): Promise<{ rows: Record<string, unknown>[] } | { error: Result['error'] }> {
+async function run(db: PGlite, sql: string, params: unknown[]): Promise<{ rows: Record<string, unknown>[] } | { error: Err }> {
   try {
     return { rows: (await db.query<Record<string, unknown>>(sql, params)).rows };
   } catch (e) {
@@ -21,12 +23,15 @@ async function run(db: PGlite, sql: string, params: unknown[]): Promise<{ rows: 
   }
 }
 
+const colList = (cols: string) => (cols.trim() === '*' ? '*' : cols.split(',').map((c) => ident(c.trim())).join(', '));
+
 class Query implements PromiseLike<Result> {
   private filters: [string, unknown][] = [];
   private single = false;
-  private op: 'select' | 'delete' = 'select';
+  private op: 'select' | 'delete' | 'insert' | 'update' = 'select';
   private cols = '*';
   private returning: string | null = null;
+  private values: Record<string, unknown> = {};
 
   constructor(
     private db: PGlite,
@@ -34,8 +39,18 @@ class Query implements PromiseLike<Result> {
   ) {}
 
   select(cols = '*') {
-    if (this.op === 'delete') this.returning = cols;
-    else this.cols = cols;
+    if (this.op === 'select') this.cols = cols;
+    else this.returning = cols;
+    return this;
+  }
+  insert(v: Record<string, unknown>) {
+    this.op = 'insert';
+    this.values = v;
+    return this;
+  }
+  update(v: Record<string, unknown>) {
+    this.op = 'update';
+    this.values = v;
     return this;
   }
   delete() {
@@ -55,15 +70,29 @@ class Query implements PromiseLike<Result> {
   }
 
   private async exec(): Promise<Result> {
-    const where = this.filters.length ? ` where ${this.filters.map(([c], i) => `${c} = $${i + 1}`).join(' and ')}` : '';
-    const params = this.filters.map(([, v]) => v);
-    const cols = () => (this.cols === '*' ? '*' : this.cols.split(',').map((c) => ident(c.trim())).join(', '));
-    const sql =
-      this.op === 'select'
-        ? `select ${cols()} from ${ident(this.table)}${where}`
-        : `delete from ${ident(this.table)}${where}${this.returning ? ` returning ${this.returning.split(',').map((c) => ident(c.trim())).join(', ')}` : ''}`;
+    const params: unknown[] = [];
+    const p = (v: unknown) => {
+      params.push(v);
+      return `$${params.length}`;
+    };
+    const where = () => (this.filters.length ? ` where ${this.filters.map(([c, v]) => `${c} = ${p(v)}`).join(' and ')}` : '');
+    const ret = this.returning ? ` returning ${colList(this.returning)}` : '';
+    let sql: string;
+    if (this.op === 'select') sql = `select ${colList(this.cols)} from ${ident(this.table)}${where()}`;
+    else if (this.op === 'delete') sql = `delete from ${ident(this.table)}${where()}${ret}`;
+    else if (this.op === 'insert') {
+      const keys = Object.keys(this.values).map(ident);
+      sql = `insert into ${ident(this.table)} (${keys.join(', ')}) values (${keys.map((k) => p(this.values[k])).join(', ')})${ret}`;
+    } else {
+      const sets = Object.keys(this.values)
+        .map(ident)
+        .map((k) => `${k} = ${p(this.values[k])}`)
+        .join(', ');
+      sql = `update ${ident(this.table)} set ${sets}${where()}${ret}`;
+    }
     const r = await run(this.db, sql, params);
     if ('error' in r) return { data: null, error: r.error };
+    if (this.op !== 'select' && !this.returning) return { data: null, error: null };
     return { data: this.single ? (r.rows[0] ?? null) : r.rows, error: null };
   }
 
@@ -72,7 +101,12 @@ class Query implements PromiseLike<Result> {
   }
 }
 
-export function pgliteClient(db: PGlite) {
+export interface StorageFaults {
+  /** simula un errore dello storage durante la rimozione */
+  failRemove?: boolean;
+}
+
+export function pgliteClient(db: PGlite, faults: StorageFaults = {}) {
   return {
     from: (table: string) => new Query(db, table),
     async rpc(fn: string, args: Record<string, unknown>): Promise<Result> {
@@ -82,6 +116,24 @@ export function pgliteClient(db: PGlite) {
       if ('error' in r) return { data: null, error: r.error };
       return { data: r.rows[0]!.r, error: null };
     },
-    storage: {},
+    storage: {
+      from: (bucket: string) => ({
+        async upload(path: string): Promise<Result> {
+          const r = await run(db, 'insert into storage.objects (bucket_id, name) values ($1, $2)', [bucket, path]);
+          return 'error' in r ? { data: null, error: r.error } : { data: { path }, error: null };
+        },
+        async remove(paths: string[]): Promise<Result> {
+          if (faults.failRemove) return { data: null, error: { message: 'Storage non raggiungibile (simulato)' } };
+          const r = await run(db, 'delete from storage.objects where bucket_id = $1 and name = any($2) returning name', [bucket, paths]);
+          return 'error' in r ? { data: null, error: r.error } : { data: r.rows, error: null };
+        },
+        async createSignedUrl(path: string, seconds: number): Promise<Result> {
+          const r = await run(db, 'select name from storage.objects where bucket_id = $1 and name = $2', [bucket, path]);
+          if ('error' in r) return { data: null, error: r.error };
+          if (r.rows.length === 0) return { data: null, error: { message: 'Object not found' } };
+          return { data: { signedUrl: `https://storage.test/${bucket}/${path}?exp=${Date.now() + seconds * 1000}` }, error: null };
+        },
+      }),
+    },
   };
 }

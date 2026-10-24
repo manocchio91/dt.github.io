@@ -495,7 +495,12 @@ export default function AgriLabPage() {
           </div>
         </fieldset>
         )}
-        <p className="text-xs text-sand-600">Foto e documenti: Milestone 1. Una fotografia documenta, non costituisce una diagnosi agronomica.</p>
+        <p className="text-xs text-sand-600">
+          <Link to={`/progetti/${bundle.project.id}/documenti`} className="font-semibold text-petrol-700 underline">
+            Foto e documenti della parcella
+          </Link>{' '}
+          — una fotografia documenta l’osservazione, non costituisce una diagnosi agronomica.
+        </p>
       </Section>
 
       <Section id="a5" step={5} title="Componenti per zona (lette separatamente)">

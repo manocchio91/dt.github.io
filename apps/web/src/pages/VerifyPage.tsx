@@ -168,7 +168,15 @@ export default function VerifyPage() {
       )}
 
       {plan && (
-        <Section step={2} title="Misure ante e post">
+        <Section
+          step={2}
+          title="Misure ante e post"
+          aside={
+            <a className="btn-ghost" href={`/progetti/${bundle.project.id}/documenti?categoria=verifica_ex_post&scenario=${plan.scenarioId}`}>
+              Allega foto o documenti alla verifica
+            </a>
+          }
+        >
           <p className="text-sm">
             Piano del {new Date(plan.createdAt).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })} · scenario {planScenario?.label} · variabile <code>{plan.variable}</code> [{plan.unit}] · punti{' '}
             {plan.points.map((p) => p.id).join(', ')}

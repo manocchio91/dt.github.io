@@ -18,3 +18,5 @@ export * from './project/bundle';
 export { demoUrbanBaselineValues, seedCampobasso, seedVineyard, CAMPOBASSO_AOI, VINEYARD_PARCEL, DEMO_EXPOST_CSV, DEMO_EXPOST_POINTS } from './seeds/seeds';
 export * from './onboarding/onboarding';
 export * from './onboarding/permissions';
+export * from './media/files';
+export * from './media/media';

@@ -76,6 +76,9 @@ export function Layout() {
                     Verifica ex-post
                   </NavLink>
                 )}
+                <NavLink to={`/progetti/${project.project.id}/documenti`} className={linkCls}>
+                  Foto e documenti
+                </NavLink>
               </div>
             )}
             <NavLink to="/metodo" className={linkCls}>

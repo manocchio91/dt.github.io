@@ -247,14 +247,16 @@ describe('Link condivisi revocabili con scadenza (F26)', () => {
 describe('Storage per tenant', () => {
   const path = () => `${orgA}/${pid}/foto-1.jpg`;
 
-  it('editor carica nel percorso del proprio progetto', async () => {
+  // Da B-109 (migrazione 0004) un oggetto si carica solo dopo aver creato la sua scheda
+  // media_assets con contesto obbligatorio: il ciclo completo è in media.test.ts.
+  it('senza scheda media nessuno carica oggetti, neanche chi ha il ruolo modifica', async () => {
     await actAs(db, { id: ids.dave });
-    await db.query(`insert into storage.objects (bucket_id, name) values ('project-media', $1)`, [path()]);
+    await expect(db.query(`insert into storage.objects (bucket_id, name) values ('project-media', $1)`, [path()])).rejects.toThrow(/row-level security/);
   });
 
-  it('viewer legge ma non carica; altro tenant non vede né carica', async () => {
+  it('viewer non carica; altro tenant non vede né carica', async () => {
     await actAs(db, { id: ids.carol });
-    expect(await rows('select name from storage.objects')).toEqual([{ name: path() }]);
+    expect(await rows('select name from storage.objects')).toEqual([]);
     await expect(db.query(`insert into storage.objects (bucket_id, name) values ('project-media', $1)`, [`${orgA}/${pid}/x.jpg`])).rejects.toThrow(/row-level security/);
     await actAs(db, { id: ids.bob });
     expect(await rows('select name from storage.objects')).toEqual([]);

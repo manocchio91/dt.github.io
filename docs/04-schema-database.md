@@ -6,6 +6,8 @@ Migrazione: [`supabase/migrations/20261024000001_core_schema.sql`](../supabase/m
 
 In M0 lo schema **non era collegato**: l'app usa `LocalRepository` (IndexedDB) con gli stessi tipi del dominio (`packages/domain`). Il collegamento a Supabase è il primo task di M1 (backlog B-101).
 
+**B-109:** la migrazione [`20261024000004_media.sql`](../supabase/migrations/20261024000004_media.sql) estende `media_assets` (contesto obbligatorio, stato `caricamento → attivo → eliminazione_in_corso`, posizione solo con consenso, retention), aggiunge impostazioni per organizzazione (`media_max_bytes`, `media_retention_years`), sostituisce le policy di storage con regole legate alla scheda, audit minimo e RPC `log_media_access` / `media_due_for_deletion`. Dettagli in [13-foto-documenti-storage-privacy.md](13-foto-documenti-storage-privacy.md).
+
 ## Entità e relazioni
 
 ```
