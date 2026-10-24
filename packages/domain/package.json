@@ -1,0 +1,15 @@
+{
+  "name": "@mdt/domain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@turf/area": "^7.2.0",
+    "@turf/boolean-point-in-polygon": "^7.2.0",
+    "@turf/kinks": "^7.2.0",
+    "@types/geojson": "^7946.0.16"
+  }
+}

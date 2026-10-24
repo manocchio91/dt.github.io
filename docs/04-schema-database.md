@@ -1,0 +1,51 @@
+# 04 — Schema database
+
+Migrazione: [`supabase/migrations/20261024000001_core_schema.sql`](../supabase/migrations/20261024000001_core_schema.sql) — PostgreSQL 15 + PostGIS, timestamp UTC, geometrie EPSG:4326.
+
+**M1:** la migrazione [`20261024000002_tenancy_rls_storage.sql`](../supabase/migrations/20261024000002_tenancy_rls_storage.sql) aggiunge tenant, RLS, documenti di progetto, link condivisi e storage: vedi [11-supabase.md](11-supabase.md).
+
+In M0 lo schema **non era collegato**: l'app usa `LocalRepository` (IndexedDB) con gli stessi tipi del dominio (`packages/domain`). Il collegamento a Supabase è il primo task di M1 (backlog B-101).
+
+## Entità e relazioni
+
+```
+organizations 1─* memberships *─1 users
+organizations 1─* projects 1─* areas 1─* parcels (sottozone via parent_parcel_id)
+areas 1─* baselines (versionate, immutabili: trigger anti-UPDATE, parent_baseline_id)
+projects 1─* scenarios *─1 baselines
+                       *─1 model_versions (ricalibrazione via parent_version_id)
+scenarios 1─* interventions (geom + params + quantità + unità)
+scenarios 1─* scenario_outputs 1─* uncertainty_records
+model_versions 1─* cost_assumptions (prototipo | capex | opex | acqua)
+projects 1─* decisions 1─* approval_events (attore, data, motivazione, allegati)
+projects 1─* field_observations 1─* media_assets (EXIF rimosso, retention, deleted_at)
+scenarios 1─* verification_campaigns (previsto/osservato/scarto, proposta nuova versione modello)
+data_sources 1─* datasets 1─* data_points (data_class, quality_flags)
+projects 1─* sensors 1─* sensor_measurements
+sources, case_studies, reports, audit_logs
+```
+
+## Vincoli che codificano le regole del prompt
+
+| Regola | Vincolo |
+|---|---|
+| Baseline immutabile | trigger `baselines_immutable` blocca ogni UPDATE |
+| Ogni numero ha una classe | `data_points.data_class`, `scenario_outputs.data_class` NOT NULL |
+| Modello calibrato solo se validato | `check (maturity = 'demo_illustrative' or (validation_date is not null and reviewer is not null))` |
+| Geometria valida | `check (ST_IsValid(geom))`; superficie calcolata in `geography` |
+| Motivazione della decisione | `check (length(rationale) >= 20)` |
+| Geolocalizzazione solo con consenso | `check (location is null or location_consent)` |
+| Incertezza non statistica dichiarata | `uncertainty_records.is_statistical` + `label` |
+| Costi separati | `cost_assumptions.cost_category in ('prototipo','capex','opex','acqua')` |
+| Tenant | RLS abilitata (politiche in M1) |
+
+## Campi minimi dello scenario (§9) — mappatura
+
+| Blocco | Tabelle / campi |
+|---|---|
+| Area | `areas.id, geom, crs, area_m2, owner_id` |
+| Baseline | `baselines.payload` (meteo, suolo/copertura), `period_*`, `qa`, `version`, `content_hash` |
+| Intervento | `interventions.type, geom, quantity, unit, timing, params (costi), constraints` |
+| Output | `scenario_outputs.variable, unit, value, range_*, spatial_resolution, data_class, model_version_id` + `uncertainty_records` |
+| Decisione | `decisions.alternatives, rationale, author_id, state, decided_at, attachments` |
+| Verifica | `verification_campaigns.*` |

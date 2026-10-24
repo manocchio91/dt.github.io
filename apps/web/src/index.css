@@ -1,0 +1,83 @@
+@import 'tailwindcss';
+@import 'maplibre-gl/dist/maplibre-gl.css';
+
+/* Palette: blu petrolio, verde, ocra, neutri caldi. Contrasto elevato per uso al sole. */
+@theme {
+  --color-petrol-900: #0b3440;
+  --color-petrol-700: #0f4c5c;
+  --color-petrol-500: #2a7186;
+  --color-petrol-100: #dcebef;
+  --color-leaf-800: #24552d;
+  --color-leaf-600: #3d7a47;
+  --color-leaf-100: #e3efe4;
+  --color-ochre-800: #6e470c;
+  --color-ochre-500: #c8963e;
+  --color-ochre-100: #f6ead3;
+  --color-sand-50: #faf8f4;
+  --color-sand-100: #f3efe7;
+  --color-sand-200: #e6dfd2;
+  --color-sand-400: #a99d8a;
+  --color-sand-600: #5f574b;
+  --color-sand-900: #2b2724;
+  --color-alert-800: #8a2417;
+  --color-alert-100: #f9e1dc;
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+html {
+  font-size: 100%;
+}
+
+body {
+  background: var(--color-sand-50);
+  color: var(--color-sand-900);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-ochre-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Componenti come utility Tailwind 4 (componibili con @apply) */
+@utility btn {
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-petrol-700 text-white hover:bg-petrol-900;
+}
+@utility btn-secondary {
+  @apply btn border-2 border-petrol-700 bg-white text-petrol-700 hover:bg-petrol-100;
+}
+@utility btn-ghost {
+  @apply btn text-petrol-700 hover:bg-petrol-100;
+}
+@utility btn-danger {
+  @apply btn border-2 border-alert-800 bg-white text-alert-800 hover:bg-alert-100;
+}
+@utility card {
+  @apply rounded-xl border border-sand-200 bg-white p-4 shadow-sm md:p-5;
+}
+@utility label {
+  @apply mb-1 block text-sm font-semibold text-sand-900;
+}
+@utility input {
+  @apply min-h-11 w-full rounded-lg border-2 border-sand-400 bg-white px-3 py-2 text-base text-sand-900 focus:border-petrol-700;
+}
+@utility h-section {
+  @apply text-lg font-bold text-petrol-900 md:text-xl;
+}
+
+@layer components {
+  .table-base {
+    @apply w-full border-collapse text-sm;
+  }
+  .table-base th {
+    @apply border-b-2 border-sand-200 bg-sand-100 px-3 py-2 text-left align-bottom font-semibold;
+  }
+  .table-base td {
+    @apply border-b border-sand-200 px-3 py-2 align-top;
+  }
+}
