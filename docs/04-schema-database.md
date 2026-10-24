@@ -53,3 +53,17 @@ sources, case_studies, reports, audit_logs
 | Output | `scenario_outputs.variable, unit, value, range_*, spatial_resolution, data_class, model_version_id` + `uncertainty_records` |
 | Decisione | `decisions.alternatives, rationale, author_id, state, decided_at, attachments` |
 | Verifica | `verification_campaigns.*` |
+
+## Previsioni (migrazione 20261024000006, F31)
+
+| Tabella | Contenuto | Regole |
+|---|---|---|
+| `forecast_model_versions` | modello, revisione bloccata dei pesi, tipo (timestral/baseline/demo), licenze codice e pesi | lettura per autenticati; scrittura solo servizio |
+| `forecast_runs` | organizzazione, progetto, modello, contesto, orizzonte, emissione, hash input, classe del dato, lineage, avvertenze | Timestral solo dal ruolo di servizio; immutabile; stato in_corso → completata/errore |
+| `forecast_series` | variabile, unità, istanti, mediana | scrivibile solo mentre l’esecuzione è in corso; mai modificabile |
+| `forecast_quantiles` | livello (uno dei 21), valori | come sopra |
+| `forecast_backtests` | caso, contesto, modello, protocollo, periodo, metriche | append-only |
+| `forecast_thresholds` | soglia dell’esperto (valore, direzione, probabilità minima, ruolo, motivazione, zona) | versionata: si modifica solo `superseded_by` |
+| `forecast_alerts` | avviso, probabilità, primo superamento, stato, valore osservato, nota di verifica | modificabili solo stato ed ex-post |
+
+RLS per organizzazione (viewer legge, editor scrive, admin elimina esecuzioni); audit in `audit_logs` per esecuzioni, soglie, avvisi e backtest.

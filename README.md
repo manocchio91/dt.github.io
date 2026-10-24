@@ -41,6 +41,7 @@ apps/web/            React 19 + TypeScript strict + Vite 7 + Tailwind 4 + MapLib
 packages/domain/     dominio puro: dati e lineage, geometria, baseline, modelli, scenari, connettori, ex-post
 supabase/migrations/ schema PostgreSQL + PostGIS (M1: collegamento)
 supabase/seed/       seed DEMO separato dai dati reali
+services/forecasting servizio Python (FastAPI, CPU) per Timestral — Beta, pesi mai nel repository
 docs/                documenti di progetto 01–10 e report di milestone
 ```
 
@@ -54,11 +55,14 @@ docs/                documenti di progetto 01–10 e report di milestone
 - Costo prototipo separato da CAPEX/OPEX/acqua dell’intervento.
 - Errori dei connettori esposti all’utente: mai valori sostitutivi.
 - Adapter DEMO non utilizzabili in modalità Pilota calibrato.
+- Previsioni (F31, Beta): 21 quantili per ora, banda selezionabile, soglie dell’esperto, confronto con baseline e con l’osservazione successiva. Timestral gira solo nel servizio esterno; senza servizio compare “Motore Timestral non configurato” e nessun valore viene inventato. Vedi [docs/15-previsioni-timestral.md](docs/15-previsioni-timestral.md).
 - Foto e documenti: tipo reale verificato, EXIF/GPS rimossi prima del salvataggio, posizione solo con consenso, storage privato con URL firmati di 60 secondi, nessun file senza contesto. Nessun antivirus (in roadmap).
 
 ## Dati e licenze
 
 - Cartografia © OpenStreetMap contributors (ODbL).
 - Meteo: Open-Meteo (CC BY 4.0) — stime modellistiche, non sensori locali.
+- Serie per previsioni e backtest: rianalisi Open-Meteo ERA5/ERA5-Land (CC BY 4.0), celle di griglia, non misure in campo.
+- Timestral (Mistral AI): codice Apache-2.0, pesi Modified MIT; scaricati dalla fonte ufficiale, mai inclusi nel repository.
 - Seed Campobasso e vigneto molisano: **dati SIMULATI e geometrie approssimate**, marcati DEMO.
 - Nessun logo istituzionale incluso (in attesa degli asset ufficiali).

@@ -58,6 +58,18 @@ P0 = Milestone 0 (integrità) · P1 = Milestone 1 (MVP pilota) · P2 = Milestone
 | B-122 | Misurare con utenti reali i tempi di onboarding (< 2 min) e primo scenario (< 5 min) | F01 |
 | B-119 | Riapplicare gli interventi di uno scenario a una nuova versione della baseline (nuovo scenario, stessi interventi) | F14 |
 
+### Previsioni probabilistiche (F31)
+
+| ID | Elemento | F |
+|---|---|---|
+| B-130 | Contratto, baseline, adapter e servizio Timestral, backtest, tabelle, sezione Previsioni — **fatto (Beta, Timestral non eseguito)** | F31 |
+| B-131 | Proxy autenticato (Edge Function) tra browser e servizio: verifica sessione e organizzazione, aggiunge il token di servizio, registra le esecuzioni Timestral con il ruolo di servizio | F31 |
+| B-132 | Eseguire test del servizio e spike 5M/28M su CPU; generare e versionare `uv.lock` | F31 |
+| B-133 | Backtest di Timestral contro le baseline (urbano e agricolo separati) e decisione Beta/validato | F31 |
+| B-134 | Previsioni da sensori in campo (F05) e covariate meteo previste note in anticipo | F31 |
+| B-135 | Salvataggio delle previsioni nelle tabelle `forecast_*` dalla UI (oggi nel documento di progetto) | F31 |
+| B-136 | Soglie validate da agronomo e tecnico comunale; test con utenti sulla comprensione degli intervalli | F31 |
+
 ## P2 — Milestone 2
 
 | ID | Elemento | F |

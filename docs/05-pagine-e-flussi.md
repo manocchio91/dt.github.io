@@ -26,6 +26,7 @@
 | `/dashboard/*` | Dashboard urbana / agricola / esecutiva | M1 | |
 | `/progetti/:id/dossier` | Dossier e workflow | M1 | |
 | `/progetti/:id/osservazioni` | Foto e documenti | M1 | |
+| `/progetti/:id/previsioni` | Previsioni (Beta) | M1 | F31: storico, “ora”, mediana, banda selezionabile, soglie, confronto baseline, ex-post, tabella alternativa |
 | `/casi-studio` | Casi studio | M1 | |
 
 ## Flusso urbano (M0)

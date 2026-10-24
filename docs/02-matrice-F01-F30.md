@@ -1,4 +1,4 @@
-# 02 — Matrice di tracciabilità requisiti – funzioni – test (F01–F30)
+# 02 — Matrice di tracciabilità requisiti – funzioni – test (F01–F31)
 
 Fonte unica in codice: [`packages/domain/src/features/features.ts`](../packages/domain/src/features/features.ts), visibile in app alla pagina **/stato**. Stato al termine della Milestone 0 (24/10/2026).
 
@@ -38,3 +38,11 @@ Legenda stato: **Operativa** · **Beta** · **Dimostrativa** (funziona, ma su mo
 | F30 | Ex-post | ≥ 1 pilota previsto/osservato | Piano, import CSV, filtro omogeneità, scarto, lezioni, proposta di nuova versione | `expost.test.ts` | Dimostrativa (nessun pilota reale) |
 
 Riepilogo (dopo M1, B-102 e B-120): Operativa 9 · Beta 10 · Dimostrativa 4 · Roadmap 6 · Non disponibile 1.
+
+## F31 — Previsioni probabilistiche (aggiunta del 24/10/2026)
+
+| ID | Requisito | Criterio di accettazione | Funzione implementata | Test / evidenza | Stato |
+|---|---|---|---|---|---|
+| F31 | Previsioni probabilistiche (Timestral) | L’utente distingue una previsione da una misura, comprende l’intervallo probabilistico, conosce modello e dati utilizzati e può confrontare la previsione con una baseline e con l’osservazione successiva. | Contratto `TimeSeriesForecastAdapter`, baseline persistenza/stagionale, adapter e servizio Timestral, backtest walk-forward, tabelle forecast_* con RLS e audit, sezione **Previsioni** con badge, banda, soglie, confronto baseline ed ex-post | `forecast.test.ts` (dominio), `services/forecasting/tests` (non eseguiti: Python assente), `supabase/tests/forecast.test.ts`, `apps/web/src/test/forecast.test.tsx`, `e2e/forecast*.spec.ts`, `docs/reports/backtest-previsioni-2026-10-24.md` | **Beta** (Timestral non eseguito) |
+
+Tracciabilità: F04 (meteo: fonte e timestamp delle serie), F05 (QA: mancanti e flag), F12 (incertezza: quantili e copertura), F15 (confronto: baseline), F17/F18 (decisione umana motivata, soglie dell’esperto), F21 (lineage), F30 (ex-post: osservazione successiva).

@@ -48,6 +48,19 @@ Le password degli utenti di prova sono casuali, non vengono stampate né salvate
 | M13 | Eliminazione di un progetto con file | bloccata finché i file esistono | |
 | M14 | `media_due_for_deletion` con file scaduto (data forzata da SQL editor) | elencato solo agli admin | |
 
+## Casi F31 — previsioni (migrazione 20261024000006)
+
+| # | Caso | Atteso | Esito |
+|---|---|---|---|
+| F1 | Editor registra un’esecuzione baseline con serie e 21 quantili | accettata; `started_by` = utente | |
+| F2 | Editor prova a registrare un’esecuzione Timestral | rifiutata: “solo dal servizio di previsione” | |
+| F3 | Ruolo di servizio registra un’esecuzione Timestral | accettata | |
+| F4 | Modifica di lineage o output dopo la conclusione | rifiutata | |
+| F5 | Utente di altra organizzazione legge esecuzioni/quantili | zero righe | |
+| F6 | Modifica di una soglia esistente | rifiutata; nuova versione + `superseded_by` | |
+| F7 | Avviso: modifica probabilità vs registrazione ex-post | rifiutata vs accettata con `reviewed_by` | |
+| F8 | Audit `forecast_*` | visibile all’admin, non al viewer | |
+
 ## Criteri di uscita
 
 - Tutti i casi con esito atteso e evidenza archiviata.
