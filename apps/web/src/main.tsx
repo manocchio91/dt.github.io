@@ -14,6 +14,7 @@ import { AuthPage } from './pages/AuthPage';
 import { SharedPage } from './pages/SharedPage';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { PreferencesProvider } from './state/preferences';
+import { ROUTER_BASENAME } from './state/appUrl';
 
 // le pagine con mappa caricano MapLibre solo quando servono
 const AreaPage = lazy(() => import('./pages/AreaPage'));
@@ -48,7 +49,7 @@ const router = createBrowserRouter([
       { path: '*', element: <p className="card">Pagina non trovata.</p> },
     ],
   },
-]);
+], { basename: ROUTER_BASENAME });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

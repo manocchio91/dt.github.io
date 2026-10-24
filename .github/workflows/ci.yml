@@ -1,0 +1,28 @@
+# CI: lint, typecheck, test (dominio, interfaccia, database PGlite) e build.
+# Gli E2E Playwright usano Microsoft Edge installato in locale e restano da eseguire con `npm run e2e`.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run ci

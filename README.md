@@ -34,6 +34,18 @@ Senza variabili d’ambiente l’app funziona in modalità locale (IndexedDB). P
 
 > **Nota Windows / cartelle virtualizzate.** Se il progetto si trova in una cartella virtualizzata (es. sotto `AppData\Roaming` di un’app MSIX) e compare `spawn …esbuild.exe ENOENT`, imposta `ESBUILD_BINARY_PATH` al percorso reale di `node_modules\@esbuild\win32-x64\esbuild.exe`, oppure sposta il progetto in una cartella normale.
 
+## Pubblicazione su GitHub Pages
+
+L’app è pubblicabile come sito statico in **https://manocchio91.github.io/dt.github.io/**.
+
+- Workflow `.github/workflows/ci.yml`: lint, typecheck, test e build a ogni push e pull request.
+- Workflow `.github/workflows/pages.yml`: dopo una CI verde su `master` costruisce l’app con `VITE_BASE=/<repository>/` e la pubblica.
+- **Prerequisito, una volta sola:** Settings → Pages → Source: **GitHub Actions**. Finché non è attivo, il workflow termina con un avviso e non pubblica nulla; poi va rieseguito (Actions → Pages → Run workflow).
+- Il router usa la sottocartella come `basename`; `404.html` è una copia di `index.html`, così la ricarica di una rotta interna funziona anche senza riscrittura lato server.
+- Variabili opzionali del repository (Settings → Secrets and variables → Actions → Variables): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (valori pubblici), `VITE_FORECAST_URL`. Senza variabili l’app funziona in modalità locale. Mai la service key. Con Supabase, aggiungere l’URL di Pages tra gli indirizzi di ritorno (Auth → URL Configuration).
+- In locale: `npm run build:pages -w @mdt/web` e `npm run preview:pages -w @mdt/web` (verificati da `e2e/pages.spec.ts`).
+
+
 ## Struttura
 
 ```

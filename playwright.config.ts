@@ -4,6 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
  * E2E su build di produzione servite da `vite preview`.
  * - 4173: build standard (ospite, archivio locale)
  * - 4174: build con Supabase configurato verso un backend simulato nel test
+ * - 4175: build per GitHub Pages servita nella sottocartella /dt.github.io/
  * Browser: Microsoft Edge installato nel sistema (nessun download).
  */
 export default defineConfig({
@@ -20,5 +21,6 @@ export default defineConfig({
   webServer: [
     { command: 'npm run preview -w @mdt/web', url: 'http://localhost:4173', reuseExistingServer: true, timeout: 60_000 },
     { command: 'npm run preview:sb -w @mdt/web', url: 'http://localhost:4174', reuseExistingServer: true, timeout: 60_000 },
+    { command: 'npm run preview:pages -w @mdt/web', url: 'http://localhost:4175/dt.github.io/', reuseExistingServer: true, timeout: 60_000 },
   ],
 });
