@@ -7,3 +7,4 @@ export * from './backtest';
 export * from './datasets';
 export * from './cases';
 export * from './record';
+export * from './weatherSource';

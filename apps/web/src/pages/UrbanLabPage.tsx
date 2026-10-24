@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { WeatherPanel } from '../components/WeatherPanel';
 import {
   buildGrid,
   combineScenarios,
@@ -240,6 +241,7 @@ export default function UrbanLabPage() {
         </div>
       </div>
       {isDemo && <DemoRibbon />}
+      <WeatherPanel bundle={bundle} />
       <GuideBanner
         readOnlyHint="Sola lettura: consulta baseline, scenari e risultati; il confronto è nella pagina “Confronto e decisione”."
         steps={[

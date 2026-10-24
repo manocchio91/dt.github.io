@@ -21,6 +21,10 @@
   --color-sand-900: #2b2724;
   --color-alert-800: #8a2417;
   --color-alert-100: #f9e1dc;
+  /* dati Open-Meteo: blu distinto dal petrolio delle stime da modello */
+  --color-meteo-900: #123a5c;
+  --color-meteo-700: #1f5f96;
+  --color-meteo-50: #eaf3fb;
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
