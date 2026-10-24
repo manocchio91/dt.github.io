@@ -35,7 +35,7 @@ Docker non era attivo, quindi non è stato avviato uno stack Supabase locale. Le
 4. Copia `.env.example` in `.env.local` e imposta `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (mai la service role key nel client).
 5. Avvia l’app, registrati, crea l’organizzazione da **/accesso**; scegli cosa importare dai dati salvati come ospite (B-121) oppure usa “Carica demo”.
 6. Pubblica le Edge Function `media-gateway` e `media-retention` e pianifica la pulizia (vedi [13](13-foto-documenti-storage-privacy.md)).
-7. Previsioni (F31): la migrazione `20261024000006_forecasts.sql` crea le tabelle `forecast_*`. Il servizio Timestral (`services/forecasting`) e il proxy autenticato (B-131, non ancora implementato) restano fuori da Supabase; registro delle funzioni server: `media-gateway`, `media-retention`; servizio esterno: `services/forecasting` (vedi [15](15-previsioni-timestral.md)).
+7. Previsioni (F31): la migrazione `20261024000006_forecasts.sql` crea le tabelle `forecast_*`. Il servizio Timestral (`services/forecasting`) e il proxy autenticato (B-131, non ancora implementato) restano fuori da Supabase; registro delle funzioni server: `media-gateway`, `media-retention`, `open-meteo-ingest` (acquisizione meteo, vedi [16](16-open-meteo-supabase.md)); servizio esterno: `services/forecasting` (vedi [15](15-previsioni-timestral.md)).
 
 ## Limiti noti
 

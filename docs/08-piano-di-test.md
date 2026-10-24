@@ -40,6 +40,18 @@
 | Intervalli in UI, tastiera, screen reader, ruolo lettura | jsdom | `apps/web/src/test/forecast.test.tsx`, `readOnly.test.tsx` |
 | Desktop, mobile, tastiera, dossier, ex-post | Playwright | `e2e/forecast.spec.ts`, `e2e/forecast-mobile.spec.ts` |
 
+## Acquisizione meteo (F04, Open-Meteo → Supabase)
+
+| Area | Test | Evidenza |
+|---|---|---|
+| Parser, unità, istanti (anche al cambio d’ora), risposte incomplete o non valide | fixture reali | `openMeteoForecast.test.ts` |
+| Timeout e tentativi limitati | fetch simulato | `openMeteoForecast.test.ts` |
+| Idempotenza, acquisizione duplicata, nessuna sovrascrittura, errore senza perdita di dati | PGlite | `supabase/tests/weather.test.ts` |
+| Separazione urbano/agricolo, RLS, isolamento, client che si spaccia per Open-Meteo, aggiornamento manuale e limite | PGlite | `supabase/tests/weather.test.ts` |
+| Stato offline, dato non aggiornato, errori, ruolo lettura, etichette di fonte | jsdom | `apps/web/src/test/weatherPanel.test.tsx` |
+| Schermata, tastiera, offline, aggiornamento manuale | Playwright | `e2e/weather.spec.ts` |
+| Smoke test reale | rete | `node scripts/open-meteo-smoke.mjs` |
+
 ## Sprint (fase Test ITS 4.0)
 
 | Sprint | Obiettivo | Partecipanti | Attività | Metriche |

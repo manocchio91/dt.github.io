@@ -68,6 +68,7 @@ docs/                documenti di progetto 01–10 e report di milestone
 - Errori dei connettori esposti all’utente: mai valori sostitutivi.
 - Adapter DEMO non utilizzabili in modalità Pilota calibrato.
 - Previsioni (F31, Beta): 21 quantili per ora, banda selezionabile, soglie dell’esperto, confronto con baseline e con l’osservazione successiva. Timestral gira solo nel servizio esterno; senza servizio compare “Motore Timestral non configurato” e nessun valore viene inventato. Vedi [docs/15-previsioni-timestral.md](docs/15-previsioni-timestral.md).
+- Meteo ufficiale (F04, Beta): acquisizione server-side Open-Meteo → Supabase ogni 3 ore (Edge Function `open-meteo-ingest`), previsioni mai sovrascritte, pannello “Dati meteorologici” con fonte, modello, cella e avviso “Dato territoriale modellato, non rilevato da sensore locale”. Vedi [docs/16-open-meteo-supabase.md](docs/16-open-meteo-supabase.md).
 - Foto e documenti: tipo reale verificato, EXIF/GPS rimossi prima del salvataggio, posizione solo con consenso, storage privato con URL firmati di 60 secondi, nessun file senza contesto. Nessun antivirus (in roadmap).
 
 ## Dati e licenze

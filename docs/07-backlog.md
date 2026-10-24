@@ -33,7 +33,7 @@ P0 = Milestone 0 (integrità) · P1 = Milestone 1 (MVP pilota) · P2 = Milestone
 | B-101 | Collegamento Supabase: auth, `SupabaseRepository`, RLS per tenant, storage — **fatto** (testato su PGlite; da provare su istanza reale), vedi docs/11 | F26 |
 | B-102 | Onboarding per profilo (6 domande), modalità guidata/tecnica — **fatto**, vedi docs/12 | F01 |
 | B-103 | Geocodifica via proxy (Nominatim con User-Agent / provider a contratto) | F02 |
-| B-104 | Edge Function proxy per Open-Meteo con cache server | F04 |
+| B-104 | Edge Function per Open-Meteo — **fatto come acquisizione `open-meteo-ingest` con registrazione su Supabase (Beta, non pubblicata)** | F04 |
 | B-105 | Import sensori CSV/API con anagrafica completa e QA/QC in UI | F05 |
 | B-106 | Dashboard urbana, agricola, esecutiva con drill-down | F17–F19 |
 | B-107 | Dossier PDF + CSV con dizionario campi + stampa | F25 |
@@ -69,6 +69,16 @@ P0 = Milestone 0 (integrità) · P1 = Milestone 1 (MVP pilota) · P2 = Milestone
 | B-134 | Previsioni da sensori in campo (F05) e covariate meteo previste note in anticipo | F31 |
 | B-135 | Salvataggio delle previsioni nelle tabelle `forecast_*` dalla UI (oggi nel documento di progetto) | F31 |
 | B-136 | Soglie validate da agronomo e tecnico comunale; test con utenti sulla comprensione degli intervalli | F31 |
+
+### Acquisizione meteo Open-Meteo → Supabase (F04)
+
+| ID | Elemento | F |
+|---|---|---|
+| B-140 | Tabelle weather_*, Edge Function open-meteo-ingest, pianificazione pg_cron, pannello “Dati meteorologici” — **fatto (Beta, test locali e smoke test Open-Meteo)** | F04 |
+| B-141 | Pubblicare migrazione 0007, funzione e job su Supabase di staging; eseguire W1–W8 di docs/14 | F04 |
+| B-142 | Import di misure da sensori in weather_observations (CSV/API) con QA (F05) | F04, F05 |
+| B-143 | Politica di conservazione a tempo per weather_forecast_points (oggi illimitata) | F04 |
+| B-144 | Backtest Open-Meteo vs osservazioni successive e uso come covariata nel backtest di Timestral | F31 |
 
 ## P2 — Milestone 2
 

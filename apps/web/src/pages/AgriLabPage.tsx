@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { WeatherPanel } from '../components/WeatherPanel';
 import {
   fetchAgriWeather,
   formatArea,
@@ -181,6 +182,7 @@ export default function AgriLabPage() {
         </Link>
       </div>
       {bundle.project.mode === 'demo' && <DemoRibbon />}
+      <WeatherPanel bundle={bundle} />
       <GuideBanner
         readOnlyHint="Sola lettura: consulta la zona da controllare, le componenti e il confronto tra misure."
         steps={[
