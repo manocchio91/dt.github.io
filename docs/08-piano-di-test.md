@@ -26,6 +26,20 @@
 | Adapter demo in Pilota | il registro solleva errore |
 | Baseline modificata | `updateBaseline` crea una nuova versione, l'originale resta invariato (oggetto congelato) |
 
+## Previsioni (F31)
+
+| Area | Test | Evidenza |
+|---|---|---|
+| Forma e ordine dei 21 quantili, mediana | baseline e risposta Timestral simulata | `forecast.test.ts` |
+| Mancanti, frequenza irregolare, UTC, ora legale, unità | validazione input | `forecast.test.ts` |
+| Covariate note e leakage | rifiuto del target tra le covariate, lunghezze | `forecast.test.ts` |
+| Modello non disponibile, timeout, cache, riproducibilità | adapter Timestral con fetch simulato | `forecast.test.ts`, `test_api.py` |
+| Autenticazione, limiti, concorrenza, log senza dati | servizio Python | `test_api.py` (da eseguire: Python assente) |
+| Isolamento per organizzazione, permessi, immutabilità, audit | PGlite | `supabase/tests/forecast.test.ts` |
+| Backtest senza leakage, baseline | dati reali di rianalisi | `forecast.test.ts`, report in `docs/reports` |
+| Intervalli in UI, tastiera, screen reader, ruolo lettura | jsdom | `apps/web/src/test/forecast.test.tsx`, `readOnly.test.tsx` |
+| Desktop, mobile, tastiera, dossier, ex-post | Playwright | `e2e/forecast.spec.ts`, `e2e/forecast-mobile.spec.ts` |
+
 ## Sprint (fase Test ITS 4.0)
 
 | Sprint | Obiettivo | Partecipanti | Attività | Metriche |

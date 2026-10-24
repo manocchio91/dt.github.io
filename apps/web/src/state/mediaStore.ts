@@ -3,6 +3,7 @@ import {
   addYears,
   checkFile,
   DEFAULT_RETENTION_YEARS,
+  inspectContent,
   METADATA_KEPT,
   sha256Bytes,
   stripMetadata,
@@ -74,6 +75,8 @@ export class PartialDeletionError extends Error {
 export function prepareUpload(file: { name: string; type: string; size: number }, bytes: Uint8Array, maxBytes?: number): { check: FileCheck; prepared: PreparedUpload | null } {
   const check = checkFile({ name: file.name, size: file.size, declaredMime: file.type, head: bytes.slice(0, 64), maxBytes });
   if (!check.ok || !check.mime) return { check, prepared: null };
+  const contentErrors = inspectContent(bytes, check.mime);
+  if (contentErrors.length) return { check: { ...check, ok: false, errors: contentErrors }, prepared: null };
   try {
     const s = stripMetadata(bytes, check.mime);
     return {
@@ -86,7 +89,7 @@ export function prepareUpload(file: { name: string; type: string; size: number }
         originalName: check.normalizedName,
         metadataRemoved: s.removed,
         metadataStripped: s.stripped,
-        metadataKept: [...METADATA_KEPT, ...(s.stripped ? [] : ['metadati interni del PDF (autore, software): non vengono modificati'])],
+        metadataKept: [...METADATA_KEPT, ...(s.stripped ? [] : ['metadati interni del PDF (autore, software, XMP): NON vengono rimossi'])],
       },
     };
   } catch (e) {
@@ -278,6 +281,46 @@ export function rowToRecord(r: Row): MediaRecord {
 
 const msg = (e: { message: string } | null | undefined, fallback: string) => (e ? `${fallback}: ${e.message}` : fallback);
 
+export class GatewayRejected extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly details: string[] = [],
+  ) {
+    super(details.length ? `${message} ${details.join(' ')}` : message);
+    this.name = 'GatewayRejected';
+  }
+}
+
+type InvokeError = { message: string; context?: { status?: number; json?: () => Promise<unknown> } };
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Chiamata al gateway server-side (Edge Function media-gateway). Le azioni sono
+ * idempotenti: errori di rete o 5xx vengono ritentati con attesa crescente.
+ */
+export async function invokeGateway<T>(client: SupabaseLike, body: { action: 'complete' | 'sign' | 'delete'; mediaId: string; downloadName?: string }, retries = 2, baseDelayMs = 300): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    const { data, error } = (await client.functions.invoke('media-gateway', { body })) as { data: T | null; error: InvokeError | null };
+    if (!error) return data as T;
+    const status = error.context?.status ?? 0;
+    let payload: { error?: string; details?: string[] } = {};
+    try {
+      payload = ((await error.context?.json?.()) as typeof payload) ?? {};
+    } catch {
+      /* corpo non JSON */
+    }
+    const transient = status === 0 || status >= 500;
+    if (transient && attempt < retries) {
+      await sleep(baseDelayMs * 3 ** attempt);
+      continue;
+    }
+    if (status === 503 && body.action === 'delete') throw new PartialDeletionError(payload.error ?? 'Eliminazione incompleta: riprova.');
+    throw new GatewayRejected(payload.error ?? error.message ?? 'Servizio non disponibile', status, payload.details ?? []);
+  }
+}
+
 export class SupabaseMediaStore implements MediaStore {
   readonly kind = 'server' as const;
 
@@ -344,8 +387,17 @@ export class SupabaseMediaStore implements MediaStore {
 
       onStage?.('conferma');
       if (signal?.aborted) throw new UploadCancelled();
-      const { error: e3 } = await this.client.from('media_assets').update({ status: 'attivo' }).eq('id', id);
-      if (e3) throw new Error(msg(e3, 'Conferma non riuscita'));
+      // il file esce dalla quarantena solo se il server ne verifica byte, impronta e metadati
+      try {
+        await invokeGateway(this.client, { action: 'complete', mediaId: id });
+      } catch (e) {
+        // un rifiuto della validazione rimuove già oggetto e scheda lato server
+        if (e instanceof GatewayRejected && e.status === 422) {
+          rowCreated = false;
+          objectSent = false;
+        }
+        throw e;
+      }
       onStage?.('fatto');
       return { ...rec, organizationId: this.organizationId, storage: 'server' as const, storagePath: path, status: 'attivo' as const };
     } catch (e) {
@@ -375,27 +427,29 @@ export class SupabaseMediaStore implements MediaStore {
     return rowToRecord(row);
   }
 
-  /** Registra la consultazione e crea un URL firmato di breve durata. */
-  async open(r: MediaRecord): Promise<OpenedMedia> {
-    const { data: path, error } = await this.client.rpc('log_media_access', { p_media: r.id });
-    if (error || !path) throw new Error(msg(error, 'File non disponibile'));
-    const { data, error: e2 } = await this.client.storage.from(MEDIA_BUCKET).createSignedUrl(path as string, SIGNED_URL_SECONDS, { download: r.originalName });
-    if (e2 || !data) throw new Error(msg(e2, 'Link temporaneo non disponibile'));
-    return { url: data.signedUrl, expiresAt: Date.now() + SIGNED_URL_SECONDS * 1000, release: () => {} };
+  /** Data di fine conservazione: solo gli amministratori (verificato dal database). */
+  async setRetention(r: MediaRecord, until: string) {
+    const { data, error } = await this.client.from('media_assets').update({ retention_until: until }).eq('id', r.id).select('*');
+    if (error) throw new Error(msg(error, 'Data non salvata'));
+    const row = (data as Row[] | null)?.[0];
+    if (!row) throw new Error('Solo un amministratore modifica la conservazione.');
+    return rowToRecord(row);
   }
 
-  /** Tre passi: segna in eliminazione → rimuove l'oggetto → rimuove la scheda. Riprende da dove si è interrotta. */
+  async expiring(days = 30): Promise<{ id: string; retentionUntil: string }[]> {
+    const { data, error } = await this.client.rpc('media_expiring', { p_org: this.organizationId, p_days: days });
+    if (error) throw new Error(msg(error, 'Elenco non disponibile'));
+    return ((data ?? []) as { id: string; retention_until: string }[]).map((x) => ({ id: x.id, retentionUntil: String(x.retention_until).slice(0, 10) }));
+  }
+
+  /** Il gateway registra la consultazione e firma un URL di breve durata: il client non può firmare da solo. */
+  async open(r: MediaRecord): Promise<OpenedMedia> {
+    const data = await invokeGateway<{ signedUrl: string; expiresInSeconds: number }>(this.client, { action: 'sign', mediaId: r.id, downloadName: r.originalName });
+    return { url: data.signedUrl, expiresAt: Date.now() + (data.expiresInSeconds ?? SIGNED_URL_SECONDS) * 1000, release: () => {} };
+  }
+
+  /** Eliminazione amministrativa tramite gateway: autorizzazione → oggetto → scheda, con ripresa dopo errori parziali. */
   async remove(r: MediaRecord) {
-    if (r.status !== 'eliminazione_in_corso') {
-      const { data, error } = await this.client.from('media_assets').update({ status: 'eliminazione_in_corso' }).eq('id', r.id).select('id');
-      if (error) throw new Error(msg(error, 'Eliminazione non avviata'));
-      if (!data || (data as unknown[]).length === 0) throw new Error('Solo un amministratore può eliminare i file.');
-    }
-    const { error: e2 } = await this.client.storage.from(MEDIA_BUCKET).remove([r.storagePath!]);
-    if (e2) throw new PartialDeletionError('Eliminazione incompleta: il file è nascosto ma non è stato rimosso dallo storage. Riprova.');
-    const { data: d3, error: e3 } = await this.client.from('media_assets').delete().eq('id', r.id).select('id');
-    if (e3 || !d3 || (d3 as unknown[]).length === 0) {
-      throw new PartialDeletionError('Eliminazione incompleta: il file è stato rimosso ma la scheda resta. Riprova per completare.');
-    }
+    await invokeGateway(this.client, { action: 'delete', mediaId: r.id });
   }
 }

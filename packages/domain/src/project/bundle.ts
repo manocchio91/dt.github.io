@@ -7,6 +7,7 @@ import { hashOf, newId } from '../hash/hash';
 import type { ProjectMode } from '../models/adapter';
 import { suggestedCellSize } from '../models/urbanDemo';
 import { verifyReproducibility, type Scenario, type ScenarioRun } from '../scenario/scenario';
+import type { ForecastRecord } from '../forecast/record';
 
 export type Sector = 'urban' | 'agriculture';
 
@@ -75,6 +76,8 @@ export interface ProjectBundle {
   measurements: MeasurementRecord[];
   modelProposals: ModelVersionProposal[];
   audit: AuditEntry[];
+  /** previsioni registrate (F31); assente nei progetti creati prima */
+  forecasts?: ForecastRecord[];
 }
 
 export function emptyBundle(p: Omit<Project, 'id' | 'createdAt'>, now: Date, id: string = newId()): ProjectBundle {

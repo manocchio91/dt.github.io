@@ -231,3 +231,32 @@ export function stripMetadata(bytes: Uint8Array, mime: string): StripResult {
   }
   return { bytes, removed: [], stripped: false };
 }
+
+// ------------------------------------------------------------------ PDF
+
+/**
+ * Controllo EURISTICO dei PDF sul testo non compresso: rifiuta JavaScript,
+ * azioni di avvio, allegati incorporati, contenuti multimediali attivi e file
+ * cifrati (non ispezionabili). Non è una sanitizzazione: i metadati (autore,
+ * software, XMP) NON vengono rimossi e oggetti dentro flussi compressi possono
+ * sfuggire al controllo (backlog B-127).
+ */
+export function inspectPdf(bytes: Uint8Array): string[] {
+  const text = new TextDecoder('latin1').decode(bytes);
+  const found: string[] = [];
+  if (/\/JavaScript\b|\/JS\s*[(<[]|\/JS\s+\d+\s+\d+\s+R/.test(text)) found.push('JavaScript incorporato');
+  if (/\/Launch\b/.test(text)) found.push('azioni che avviano programmi');
+  if (/\/EmbeddedFiles?\b|\/FileAttachment\b/.test(text)) found.push('file allegati incorporati');
+  if (/\/RichMedia\b/.test(text)) found.push('contenuti multimediali attivi');
+  if (/\/Encrypt\b/.test(text)) found.push('cifratura (il contenuto non può essere verificato)');
+  return found;
+}
+
+/** Controlli sul contenuto completo (oltre ai primi byte). */
+export function inspectContent(bytes: Uint8Array, mime: string): string[] {
+  if (mime === 'application/pdf') {
+    const f = inspectPdf(bytes);
+    return f.length ? [`PDF non ammesso: contiene ${f.join(', ')}. Esporta di nuovo il documento come PDF semplice.`] : [];
+  }
+  return [];
+}

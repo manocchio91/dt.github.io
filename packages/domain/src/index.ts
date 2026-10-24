@@ -20,3 +20,4 @@ export * from './onboarding/onboarding';
 export * from './onboarding/permissions';
 export * from './media/files';
 export * from './media/media';
+export * from './forecast/index';

@@ -176,6 +176,9 @@ export default function AgriLabPage() {
       <div>
         <p className="text-sm text-sand-600">{bundle.project.name}</p>
         <h1 className="text-2xl font-extrabold text-petrol-900">Decision Lab agricolo</h1>
+        <Link to={`/progetti/${bundle.project.id}/previsioni`} className="btn-secondary mt-2">
+          Previsioni (Beta)
+        </Link>
       </div>
       {bundle.project.mode === 'demo' && <DemoRibbon />}
       <GuideBanner

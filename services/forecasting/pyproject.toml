@@ -1,0 +1,52 @@
+[project]
+name = "mdt-forecasting"
+version = "0.1.0"
+description = "Servizio di inferenza Timestral per Micro Digital Twin (Beta da validare)"
+requires-python = ">=3.10,<3.14"
+license = { text = "Apache-2.0" }
+# Versioni bloccate. Il lockfile completo (uv.lock) va generato con `uv lock`
+# su una macchina con Python: non è stato possibile generarlo in questo ambiente.
+dependencies = [
+    "fastapi==0.115.12",
+    "uvicorn[standard]==0.34.2",
+    "pydantic==2.11.4",
+    "anyio==4.9.0",
+    "numpy==2.2.5",
+]
+
+[project.optional-dependencies]
+# Motore reale: codice Timestral bloccato a un commit (Apache-2.0); torch solo CPU.
+# I pesi NON sono dipendenze: si scaricano da Hugging Face alla revisione dichiarata.
+timestral = [
+    "torch==2.7.0",
+    "huggingface_hub==0.31.1",
+    "safetensors==0.5.3",
+    "timestral @ git+https://github.com/mistralai/timestral.git@a534bdbd244d64f3d9d743f46c7bf6fc330ed4ff",
+]
+
+[dependency-groups]
+dev = ["pytest==8.3.5", "httpx==0.28.1"]
+
+[tool.uv]
+# torch CPU dall'indice ufficiale PyTorch
+index-strategy = "unsafe-best-match"
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["real_model: richiede pesi Timestral scaricati (MDT_REAL_MODEL=1)"]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]

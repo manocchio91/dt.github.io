@@ -6,3 +6,13 @@ coverage
 test-results
 playwright-report
 apps/web/dist-sb
+.env.supabase-test
+.env.*.local
+
+# Servizio di previsione: ambienti e pesi del modello mai in Git
+services/forecasting/.venv
+__pycache__
+.pytest_cache
+*.safetensors
+services/forecasting/models
+services/forecasting/hf-cache

@@ -51,6 +51,14 @@ grant usage on schema public to anon, authenticated;
 alter default privileges in schema public grant all on tables to anon, authenticated;
 alter default privileges in schema public grant all on sequences to anon, authenticated;
 alter default privileges in schema public grant all on functions to anon, authenticated;
+
+-- service_role (chiave di servizio): come in Supabase, privilegi completi e RLS ignorata
+grant usage on schema auth, storage, extensions to service_role;
+grant all on storage.objects, storage.buckets to service_role;
+grant usage on schema public to service_role;
+alter default privileges in schema public grant all on tables to service_role;
+alter default privileges in schema public grant all on sequences to service_role;
+alter default privileges in schema public grant all on functions to service_role;
 `;
 
 export async function createDb(): Promise<PGlite> {
@@ -68,7 +76,7 @@ export async function createDb(): Promise<PGlite> {
   return db;
 }
 
-export type Actor = { id: string } | 'anon' | 'superuser';
+export type Actor = { id: string } | 'anon' | 'superuser' | 'service';
 
 export async function actAs(db: PGlite, who: Actor): Promise<void> {
   await db.exec('reset role');
@@ -76,9 +84,9 @@ export async function actAs(db: PGlite, who: Actor): Promise<void> {
     await db.query(`select set_config('request.jwt.claims', '', false)`);
     return;
   }
-  const claims = who === 'anon' ? { role: 'anon' } : { sub: who.id, role: 'authenticated' };
+  const claims = who === 'anon' ? { role: 'anon' } : who === 'service' ? { role: 'service_role' } : { sub: who.id, role: 'authenticated' };
   await db.query(`select set_config('request.jwt.claims', $1, false)`, [JSON.stringify(claims)]);
-  await db.exec(`set role ${who === 'anon' ? 'anon' : 'authenticated'}`);
+  await db.exec(`set role ${who === 'anon' ? 'anon' : who === 'service' ? 'service_role' : 'authenticated'}`);
 }
 
 export async function createAuthUser(db: PGlite, id: string, email: string): Promise<{ id: string }> {

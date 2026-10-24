@@ -5,7 +5,7 @@ export function StatusPage() {
   const counts = FEATURES.reduce<Record<string, number>>((acc, f) => ({ ...acc, [f.status]: (acc[f.status] ?? 0) + 1 }), {});
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-extrabold text-petrol-900">Stato delle funzioni F01–F30</h1>
+      <h1 className="text-2xl font-extrabold text-petrol-900">Stato delle funzioni F01–F31</h1>
       <p className="text-sm">
         Matrice requisiti–funzioni–test della Milestone 0. Nessuna funzione è descritta come validata senza prova: le evidenze puntano a test automatici o pagine verificabili.
       </p>
@@ -18,7 +18,7 @@ export function StatusPage() {
       </ul>
       <div className="card overflow-x-auto p-0">
         <table className="table-base min-w-[48rem]">
-          <caption className="sr-only">Stato dei requisiti F01–F30</caption>
+          <caption className="sr-only">Stato dei requisiti F01–F31</caption>
           <thead>
             <tr>
               <th scope="col">ID</th>
@@ -37,7 +37,10 @@ export function StatusPage() {
                   {f.id}
                 </th>
                 <td className="font-semibold">{f.title}</td>
-                <td>{f.criterion}</td>
+                <td>
+                  {f.criterion}
+                  {f.traces && <span className="mt-1 block text-xs text-sand-600">Collegata a: {f.traces.join(', ')}</span>}
+                </td>
                 <td>
                   <StatusBadge status={f.status} />
                 </td>

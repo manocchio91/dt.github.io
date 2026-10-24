@@ -28,6 +28,8 @@ import { useAuth } from '../state/auth';
 import { downloadText } from '../state/store';
 import { useMediaStores, useOnline } from '../state/useMedia';
 import { PartialDeletionError, prepareUpload, STAGE_LABEL, UploadCancelled, type PreparedUpload, type UploadStage } from '../state/mediaStore';
+import { uploadLocalRecords } from '../state/mediaSync';
+import { RetentionPanel } from '../components/RetentionPanel';
 
 const LOCAL_BADGE = 'File locale — non sincronizzato con il server.';
 const ACCEPT = Object.keys(ALLOWED_MEDIA).join(',') + ',.jpg,.jpeg,.png,.webp,.pdf';
@@ -357,21 +359,7 @@ export default function MediaPage() {
 
   const syncLocal = async (list: MediaRecord[]) => {
     if (!remote) return;
-    let ok = 0;
-    const failed: string[] = [];
-    for (const r of list) {
-      try {
-        const bytes = await local.bytesOf(r.id);
-        await remote.upload(
-          { bytes, mime: r.mime, sizeBytes: r.sizeBytes, sha256: r.sha256, originalName: r.originalName, metadataRemoved: r.metadataRemoved, metadataKept: r.metadataKept, metadataStripped: true },
-          { ...r, organizationId: remote.organizationId, authorId: userId },
-        );
-        await local.remove(r);
-        ok++;
-      } catch (e) {
-        failed.push(`${r.originalName}: ${(e as Error).message}`);
-      }
-    }
+    const { ok, failed } = await uploadLocalRecords(remote, local, list, userId);
     setNotice(`${ok} file caricati sul server.${failed.length ? ` Non caricati: ${failed.join('; ')}` : ''}`);
     await refresh();
   };
@@ -446,7 +434,7 @@ export default function MediaPage() {
           >
             <p className="font-semibold">Trascina qui una foto o un documento</p>
             <p className="text-sm text-sand-600">
-              JPEG, PNG, WebP o PDF, fino a {formatBytes(DEFAULT_MAX_BYTES)}. Le foto HEIC non sono ancora supportate. I dati EXIF e la posizione GPS vengono rimossi prima del salvataggio.
+              JPEG, PNG, WebP o PDF, fino a {formatBytes(DEFAULT_MAX_BYTES)}. Le foto HEIC non sono ancora supportate. I dati EXIF e la posizione GPS vengono rimossi prima del salvataggio. Nei PDF i metadati (autore, software) non vengono rimossi; PDF con JavaScript, allegati o cifratura sono rifiutati. Nessuna scansione antivirus.
             </p>
             <div className="mt-3 flex flex-wrap justify-center gap-2">
               <button type="button" className="btn-primary" onClick={() => cameraInput.current?.click()}>
@@ -685,6 +673,8 @@ export default function MediaPage() {
                   </div>
                   {r.storage === 'locale' ? (
                     <span className="rounded border-2 border-dashed border-ochre-800 bg-ochre-100 px-2 py-0.5 text-xs font-bold text-ochre-800">{LOCAL_BADGE}</span>
+                  ) : r.status === 'caricamento' ? (
+                    <span className="rounded bg-ochre-100 px-2 py-0.5 text-xs font-bold text-ochre-800">In quarantena: verifica del server non completata</span>
                   ) : r.status === 'eliminazione_in_corso' ? (
                     <span className="rounded bg-alert-100 px-2 py-0.5 text-xs font-bold text-alert-800">Eliminazione incompleta</span>
                   ) : (
@@ -731,6 +721,8 @@ export default function MediaPage() {
           })}
         </ul>
       </Section>
+
+      {remote && perms.canAdmin && online && <RetentionPanel organizationId={remote.organizationId} records={records} onChanged={refresh} />}
 
       <dialog ref={dialogRef} aria-labelledby="del-title" className="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-xl p-0 backdrop:bg-sand-900/40" onClose={() => setConfirming(null)}>
         <div className="space-y-3 p-4">

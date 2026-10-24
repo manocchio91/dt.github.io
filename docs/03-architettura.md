@@ -20,7 +20,8 @@ micro-digital-twin/
 │     ├─ scenario/           scenari, run, comparabilità
 │     ├─ connectors/         Open-Meteo (timeout, cache, errori espliciti, metadata)
 │     ├─ expost/             campagne di verifica, scarti, proposta di ricalibrazione
-│     ├─ features/           registro F01–F30 con stato
+│     ├─ forecast/           previsioni probabilistiche: contratto, baseline, Timestral, backtest, record (F31)
+│     ├─ features/           registro F01–F31 con stato
 │     └─ seeds/              seed DEMO (Campobasso, vigneto molisano)
 ├─ supabase/
 │  ├─ migrations/            SQL versionato PostgreSQL + PostGIS (M1: collegamento)
@@ -76,3 +77,7 @@ In M0 sono registrati solo adapter `maturity: 'demo-illustrative'`. Il registro 
 | IndexedDB (`idb`) | persistenza offline-first in M0, precondizione della PWA (F28) |
 | Vitest | test di dominio e componenti |
 | Grafici | SVG accessibile scritto a mano (tabella equivalente sempre presente) |
+
+## Servizio di previsione (F31)
+
+`services/forecasting` è un servizio Python separato (FastAPI, CPU) che esegue Timestral. Il browser lo raggiunge solo tramite un proxy autenticato (`VITE_FORECAST_URL`); senza servizio l’interfaccia mostra "Motore Timestral non configurato". Dettagli in [15-previsioni-timestral.md](15-previsioni-timestral.md).

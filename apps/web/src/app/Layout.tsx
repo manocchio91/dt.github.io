@@ -66,6 +66,9 @@ export function Layout() {
                 <NavLink to={labPath} className={linkCls}>
                   Decision Lab
                 </NavLink>
+                <NavLink to={`/progetti/${project.project.id}/previsioni`} className={linkCls}>
+                  Previsioni
+                </NavLink>
                 {sector === 'urban' && (
                   <NavLink to={`/progetti/${project.project.id}/confronto`} className={linkCls}>
                     Confronto e decisione

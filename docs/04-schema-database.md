@@ -8,6 +8,8 @@ In M0 lo schema **non era collegato**: l'app usa `LocalRepository` (IndexedDB) c
 
 **B-109:** la migrazione [`20261024000004_media.sql`](../supabase/migrations/20261024000004_media.sql) estende `media_assets` (contesto obbligatorio, stato `caricamento → attivo → eliminazione_in_corso`, posizione solo con consenso, retention), aggiunge impostazioni per organizzazione (`media_max_bytes`, `media_retention_years`), sostituisce le policy di storage con regole legate alla scheda, audit minimo e RPC `log_media_access` / `media_due_for_deletion`. Dettagli in [13-foto-documenti-storage-privacy.md](13-foto-documenti-storage-privacy.md).
 
+**B-124/B-125:** la migrazione [`20261024000005_media_gateway_retention.sql`](../supabase/migrations/20261024000005_media_gateway_retention.sql) aggiunge `validated_at` e `validation`, riserva al servizio l’uscita dalla quarantena, toglie ai client la lettura diretta degli oggetti, aggiunge le RPC `media_authorize_complete`, `media_authorize_delete`, `media_expiring` e le regole sulla data di conservazione.
+
 ## Entità e relazioni
 
 ```
@@ -51,3 +53,17 @@ sources, case_studies, reports, audit_logs
 | Output | `scenario_outputs.variable, unit, value, range_*, spatial_resolution, data_class, model_version_id` + `uncertainty_records` |
 | Decisione | `decisions.alternatives, rationale, author_id, state, decided_at, attachments` |
 | Verifica | `verification_campaigns.*` |
+
+## Previsioni (migrazione 20261024000006, F31)
+
+| Tabella | Contenuto | Regole |
+|---|---|---|
+| `forecast_model_versions` | modello, revisione bloccata dei pesi, tipo (timestral/baseline/demo), licenze codice e pesi | lettura per autenticati; scrittura solo servizio |
+| `forecast_runs` | organizzazione, progetto, modello, contesto, orizzonte, emissione, hash input, classe del dato, lineage, avvertenze | Timestral solo dal ruolo di servizio; immutabile; stato in_corso → completata/errore |
+| `forecast_series` | variabile, unità, istanti, mediana | scrivibile solo mentre l’esecuzione è in corso; mai modificabile |
+| `forecast_quantiles` | livello (uno dei 21), valori | come sopra |
+| `forecast_backtests` | caso, contesto, modello, protocollo, periodo, metriche | append-only |
+| `forecast_thresholds` | soglia dell’esperto (valore, direzione, probabilità minima, ruolo, motivazione, zona) | versionata: si modifica solo `superseded_by` |
+| `forecast_alerts` | avviso, probabilità, primo superamento, stato, valore osservato, nota di verifica | modificabili solo stato ed ex-post |
+
+RLS per organizzazione (viewer legge, editor scrive, admin elimina esecuzioni); audit in `audit_logs` per esecuzioni, soglie, avvisi e backtest.

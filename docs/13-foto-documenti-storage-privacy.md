@@ -52,15 +52,38 @@ Accanto alle immagini agricole compare sempre: *“La fotografia documenta l’o
 - L’utente vede l’elenco di cosa viene rimosso e conservato.
 - Le descrizioni sono libere: l’interfaccia invita a non inserire dati personali.
 
+## Gateway server-side (B-124) — migrazione `20261024000005_media_gateway_retention.sql`
+
+Dalla 0005 il browser **non conferma e non firma più** i file:
+
+| Passo | Chi lo fa | Cosa viene verificato |
+|---|---|---|
+| Scheda + oggetto | client con il token dell’utente | contesto (trigger), percorso, ruolo (RLS e policy) |
+| **Quarantena** | — | l’oggetto è visibile solo al suo autore (per annullare); nessun altro lo vede |
+| Conferma | Edge Function `media-gateway` (`complete`) | autorizzazione con il token dell’utente (`media_authorize_complete`), poi con la chiave di servizio: **byte reali** (magic bytes), coerenza con il tipo registrato, dimensione, **impronta SHA-256**, assenza di EXIF/GPS (un client modificato che salta la pulizia viene scartato), controllo PDF. Esito in `validation`; file non conformi rimossi (audit `caricamento_scartato`) |
+| Consultazione | `media-gateway` (`sign`) | `log_media_access` con il token dell’utente **prima** della firma; poi firma di 60 s con la chiave di servizio. I client non hanno più policy di lettura sugli oggetti: senza gateway non c’è URL, quindi non si può saltare il registro |
+| Eliminazione | `media-gateway` (`delete`) | `media_authorize_delete` (solo admin, audit con l’attore) → rimozione oggetto → rimozione scheda; 503 e ripresa se un passo fallisce |
+
+Tutte le azioni sono **idempotenti** e il client le ritenta con attesa crescente in caso di rete assente o errore 5xx. Solo il servizio può impostare `status = 'attivo'`, `validated_at` e `validation` (trigger).
+
+## Conservazione (B-125)
+
+- Periodo predefinito per organizzazione (`media_retention_years`, modificabile dagli amministratori in /accesso) e data per singolo file modificabile solo dagli amministratori, mai nel passato (trigger, audit `modifica_conservazione`).
+- Anteprima per gli amministratori dei file in scadenza entro 30 giorni (`media_expiring`) nella pagina Foto e documenti.
+- Job di eliminazione: Edge Function `media-retention` (logica `purgeExpired`), invocata ogni notte da `pg_cron` + `pg_net` con un segreto dedicato; modello in `supabase/sql/schedule-media-retention.sql` (non è una migrazione: richiede URL del progetto e segreto nel Vault). Audit minimo: `eliminazione_per_scadenza`, `eliminazione_completata`. Gli errori parziali lasciano il file nascosto in “eliminazione in corso” e il job successivo riprende.
+
+## PDF
+
+Controllo **euristico** sul testo non compresso, nel client e nel gateway: rifiuta PDF con JavaScript, azioni di avvio, allegati incorporati, contenuti multimediali attivi o cifratura. **Non è una sanitizzazione**: autore, software e XMP restano nel file e oggetti dentro flussi compressi possono sfuggire. La sanitizzazione verificata è in backlog (B-127) e l’interfaccia lo dichiara.
+
 ## Limiti dichiarati
 
-- **Nessun antivirus.** La scansione malware è in roadmap (B-123).
-- Il controllo del tipo reale è fatto **nel client**; il server verifica tipo dichiarato, dimensione e contesto, non i byte. Un controllo server dei byte richiede una Edge Function (B-124).
-- La registrazione della consultazione avviene con l’RPC chiamato dall’app prima della firma; un client modificato potrebbe firmare senza registrare. Per renderla obbligatoria serve una Edge Function che firmi gli URL (B-124).
+- **Nessun antivirus.** La scansione malware è in roadmap (B-123); il gateway registra `antivirus: non disponibile` nell’esito.
+- Le Edge Function **non sono state eseguite** in Deno né su Supabase reale: la loro logica (`supabase/functions/_shared/mediaGateway.ts`) è testata su Postgres reale (PGlite) con le policy vere; l’involucro Deno va provato su staging (docs/14).
 - Un URL firmato già emesso resta valido fino alla scadenza (**60 secondi**) anche se nel frattempo il ruolo viene revocato; dopo l’eliminazione dell’oggetto non funziona più.
 - HEIC non supportato (rifiutato con istruzioni); conversione reale in roadmap (B-126).
-- La cancellazione automatica a fine conservazione richiede un job pianificato (B-125); oggi gli amministratori vedono l’elenco dei file scaduti.
-- I metadati interni dei PDF non vengono modificati.
+- La pianificazione notturna va attivata a mano sul progetto (pg_cron, pg_net, Vault).
+- I metadati interni dei PDF non vengono rimossi (B-127).
 
 ## Test
 

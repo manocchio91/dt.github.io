@@ -1,4 +1,4 @@
-/** Registro F01–F30 (§16) con stato visibile e evidenza verificabile. */
+/** Registro F01–F31 (§16 + F31 previsioni) con stato visibile e evidenza verificabile. */
 
 export type FeatureStatus = 'operativa' | 'beta' | 'dimostrativa' | 'roadmap' | 'non_disponibile';
 
@@ -18,6 +18,8 @@ export interface FeatureEntry {
   milestone: 0 | 1 | 2;
   evidence: string[];
   gap: string;
+  /** requisiti collegati (tracciabilità) */
+  traces?: string[];
 }
 
 export const FEATURES: FeatureEntry[] = [
@@ -42,7 +44,7 @@ export const FEATURES: FeatureEntry[] = [
   { id: 'F19', title: 'Dashboard esecutiva', criterion: 'ranking motivabile', status: 'roadmap', milestone: 1, evidence: [], gap: 'B-106.' },
   { id: 'F20', title: 'Casi studio', criterion: 'nessun valore esterno scambiato per output locale', status: 'roadmap', milestone: 1, evidence: [], gap: 'B-111.' },
   { id: 'F21', title: 'Lineage', criterion: 'ogni KPI risale alla catena di provenienza', status: 'operativa', milestone: 0, evidence: ['packages/domain/src/data/dataValue.test.ts', 'apps/web/src/components/DataBadge.test.tsx'], gap: '' },
-  { id: 'F22', title: 'Media', criterion: 'upload, associazione, export ed eliminazione completi', status: 'beta', milestone: 1, evidence: ['packages/domain/src/media/files.test.ts', 'supabase/tests/media.test.ts', 'supabase/tests/mediaStore.test.ts', 'apps/web/src/test/media.test.tsx', 'e2e/media.spec.ts', 'pagina /progetti/:id/documenti'], gap: 'Flusso completo (upload, controllo, anteprima, associazione, consultazione, export, eliminazione) testato su PGlite e backend simulato. Resta Beta fino alla verifica su un progetto Supabase reale (docs/14). Nessun antivirus (B-123).' },
+  { id: 'F22', title: 'Media', criterion: 'upload, associazione, export ed eliminazione completi', status: 'beta', milestone: 1, evidence: ['packages/domain/src/media/files.test.ts', 'supabase/tests/media.test.ts', 'supabase/tests/gateway.test.ts', 'supabase/tests/mediaStore.test.ts', 'apps/web/src/test/media.test.tsx', 'apps/web/src/test/guestImport.test.tsx', 'e2e/media.spec.ts', 'pagina /progetti/:id/documenti'], gap: 'Flusso completo con quarantena e validazione server-side (B-124), conservazione (B-125), importazione da ospite su conferma (B-121): testati su PGlite e backend simulato. Resta Beta fino alla verifica su Supabase reale (docs/14). Nessun antivirus (B-123); metadati PDF non rimossi (B-127).' },
   { id: 'F23', title: 'AI fotografica', criterion: 'non attiva senza benchmark e supervisione', status: 'roadmap', milestone: 2, evidence: [], gap: 'Volutamente non attiva (B-201).' },
   { id: 'F24', title: 'Sensor placement', criterion: 'suggerimento spiegabile e approvazione umana', status: 'roadmap', milestone: 2, evidence: [], gap: 'B-202.' },
   { id: 'F25', title: 'Export', criterion: 'PDF/CSV/GeoJSON coerenti e reimportabili', status: 'beta', milestone: 1, evidence: ['packages/domain/src/project/bundle.test.ts'], gap: 'JSON progetto + GeoJSON reimportabili con hash; PDF e CSV in M1 (B-107).' },
@@ -51,4 +53,14 @@ export const FEATURES: FeatureEntry[] = [
   { id: 'F28', title: 'PWA', criterion: 'perdita rete senza perdita dati e avviso dati obsoleti', status: 'beta', milestone: 1, evidence: ['persistenza IndexedDB locale', 'e2e/media.spec.ts (offline → sincronizzazione confermata)'], gap: 'Progetti e file restano nel browser senza rete; i file si sincronizzano dopo conferma. Service worker e avviso dati obsoleti in B-110.' },
   { id: 'F29', title: 'Accessibilità', criterion: 'nessun blocco critico da tastiera/mobile', status: 'beta', milestone: 1, evidence: ['e2e/onboarding.spec.ts (percorso solo tastiera)', 'e2e/mobile.spec.ts', 'coordinate da tastiera per aree e interventi'], gap: 'Onboarding e primo scenario completabili da tastiera e su smartphone; audit WCAG 2.2 AA e screen reader ancora da fare (B-114).' },
   { id: 'F30', title: 'Ex-post', criterion: 'almeno un pilota con confronto previsto/osservato documentato', status: 'dimostrativa', milestone: 0, evidence: ['packages/domain/src/expost/expost.test.ts', 'pagina /progetti/:id/verifica'], gap: 'Funzione operativa; nessun pilota reale: solo misure SIMULATE di esempio.' },
+  {
+    id: 'F31',
+    title: 'Previsioni probabilistiche (Timestral)',
+    criterion: 'L’utente distingue una previsione da una misura, comprende l’intervallo probabilistico, conosce modello e dati utilizzati e può confrontare la previsione con una baseline e con l’osservazione successiva.',
+    status: 'beta',
+    milestone: 1,
+    traces: ['F04', 'F05', 'F12', 'F15', 'F17', 'F18', 'F21', 'F30'],
+    evidence: ['packages/domain/src/forecast/forecast.test.ts', 'services/forecasting/tests/test_api.py', 'supabase/tests/forecast.test.ts', 'apps/web/src/test/forecast.test.tsx', 'e2e/forecast.spec.ts', 'docs/reports/backtest-previsioni-2026-10-24.md', 'pagina /progetti/:id/previsioni'],
+    gap: 'Beta da validare. Contratto, servizio, baseline, backtest, tabelle e interfaccia implementati e testati in locale; Timestral non eseguito (servizio non configurato in questo ambiente: l’interfaccia mostra “Motore Timestral non configurato”). Backtest solo delle baseline su rianalisi; nessuna validazione con utenti o esperti.',
+  },
 ];

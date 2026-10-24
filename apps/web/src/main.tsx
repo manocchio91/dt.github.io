@@ -22,6 +22,7 @@ const AgriLabPage = lazy(() => import('./pages/AgriLabPage'));
 const ComparePage = lazy(() => import('./pages/ComparePage'));
 const VerifyPage = lazy(() => import('./pages/VerifyPage'));
 const MediaPage = lazy(() => import('./pages/MediaPage'));
+const ForecastPage = lazy(() => import('./pages/ForecastPage'));
 
 const wrap = (el: React.ReactNode) => <Suspense fallback={<p className="p-4">Caricamento…</p>}>{el}</Suspense>;
 
@@ -37,6 +38,7 @@ const router = createBrowserRouter([
       { path: '/progetti/:id/confronto', element: wrap(<ComparePage />) },
       { path: '/progetti/:id/verifica', element: wrap(<VerifyPage />) },
       { path: '/progetti/:id/documenti', element: wrap(<MediaPage />) },
+      { path: '/progetti/:id/previsioni', element: wrap(<ForecastPage />) },
       { path: '/metodo', element: <MethodPage /> },
       { path: '/stato', element: <StatusPage /> },
       { path: '/limiti', element: <LimitsPage /> },
