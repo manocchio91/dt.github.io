@@ -30,7 +30,11 @@ const K = new Uint32Array([
 ]);
 
 export function sha256Hex(input: string): string {
-  const bytes = new TextEncoder().encode(input);
+  return sha256Bytes(new TextEncoder().encode(input));
+}
+
+/** SHA-256 di dati binari (es. impronta di un file caricato). */
+export function sha256Bytes(bytes: Uint8Array): string {
   const bitLen = bytes.length * 8;
   const padded = new Uint8Array(((bytes.length + 9 + 63) >> 6) << 6);
   padded.set(bytes);

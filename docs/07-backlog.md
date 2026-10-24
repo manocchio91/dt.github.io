@@ -38,7 +38,11 @@ P0 = Milestone 0 (integrità) · P1 = Milestone 1 (MVP pilota) · P2 = Milestone
 | B-106 | Dashboard urbana, agricola, esecutiva con drill-down | F17–F19 |
 | B-107 | Dossier PDF + CSV con dizionario campi + stampa | F25 |
 | B-108 | Workflow Bozza → … → Chiusura con approval_events | F27 |
-| B-109 | Osservazioni, foto, documenti: EXIF, consenso, retention, eliminazione verificabile | F22 |
+| B-109 | Foto e documenti: tipo reale, EXIF/GPS rimossi, consenso posizione, contesto obbligatorio, retention, eliminazione verificabile, audit, offline — **fatto (Beta)**, vedi docs/13; verifica su Supabase reale in docs/14 | F22 |
+| B-123 | Scansione malware dei file caricati (nessun antivirus presente oggi) | F22 |
+| B-124 | Edge Function: firma URL con audit obbligatorio e verifica dei byte lato server | F22 |
+| B-125 | Job pianificato di eliminazione a fine conservazione (pg_cron o Edge Function) | F22 |
+| B-126 | Conversione reale HEIC → JPEG (oggi rifiutato con istruzioni) | F22 |
 | B-110 | PWA: service worker, sync differita, avviso dati obsoleti | F28 |
 | B-111 | Casi studio strutturati con punteggio di comparabilità | F20 |
 | B-112 | Link condivisi revocabili con scadenza — **fatto** (backend + UI) | F26 |

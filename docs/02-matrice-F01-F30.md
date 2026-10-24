@@ -27,13 +27,13 @@ Legenda stato: **Operativa** · **Beta** · **Dimostrativa** (funziona, ma su mo
 | F19 | Dashboard esecutiva | ranking motivabile | — | — | Roadmap |
 | F20 | Casi studio | nessun valore esterno come output locale | — | — | Roadmap |
 | F21 | Lineage | ogni KPI → catena di provenienza | `DataValue` obbligatorio + pannello lineage dal badge | `dataValue.test.ts`, `DataBadge.test.tsx` | Operativa |
-| F22 | Media | upload, associazione, export, eliminazione | Servizio storage per tenant, rimozione EXIF/GPS, URL firmati, eliminazione verificata | `media.test.ts`, `rls.test.ts` (storage) | Beta (UI in B-109) |
+| F22 | Media | upload, associazione, export, eliminazione | Pagina Foto e documenti per urbano e agricolo: tipo reale, rimozione EXIF/GPS, anteprima, contesto obbligatorio (area/parcella, zona o cella, scenario, osservazione, fase, data, autore), URL firmati 60 s con audit, CSV, eliminazione in tre passi; ospite e offline in locale | `files.test.ts` (12), `media.test.ts` dominio (7), DB `media.test.ts` (24) e `mediaStore.test.ts` (7), `media.test.tsx` (13), `e2e/media.spec.ts` (8) + mobile | Beta (da verificare su Supabase reale) |
 | F23 | AI fotografica | non attiva senza benchmark | Volutamente assente | — | Roadmap |
 | F24 | Sensor placement | spiegabile, approvazione umana | — | — | Roadmap |
 | F25 | Export | PDF/CSV/GeoJSON coerenti e reimportabili | JSON progetto con hash + verifica riproducibilità; GeoJSON scenario reimportabile | `bundle.test.ts` | Beta (PDF/CSV M1) |
 | F26 | Account | tenant, revoca link | Supabase Auth, organizzazioni e ruoli, RLS su tutte le tabelle, link con scadenza e revoca, interfaccia per ruolo (B-120) | `rls.test.ts` (23), `repository.test.ts` (5), `preferences.test.ts` (7), `readOnly.test.tsx` (14), `e2e/supabase.spec.ts` | Beta (non provato su istanza reale) |
 | F27 | Workflow | storico attore-data-motivazione | Decisione con alternative, motivazione, autore, storico; invio a revisione | `bundle.test.ts` (validazione) | Beta |
-| F28 | PWA | offline senza perdita dati | Persistenza IndexedDB locale | — | Beta (no service worker) |
+| F28 | PWA | offline senza perdita dati | Persistenza IndexedDB di progetti e file; file creati senza rete marcati “non sincronizzato” e caricati dopo conferma | E2E offline → online | Beta (no service worker) |
 | F29 | Accessibilità | nessun blocco critico tastiera/mobile | Focus visibile, skip link, landmark, tabelle equivalenti alle mappe, coordinate da tastiera per aree e interventi, onboarding con focus gestito, simboli oltre al colore | E2E solo tastiera e smartphone; non verificato con screen reader | Beta |
 | F30 | Ex-post | ≥ 1 pilota previsto/osservato | Piano, import CSV, filtro omogeneità, scarto, lezioni, proposta di nuova versione | `expost.test.ts` | Dimostrativa (nessun pilota reale) |
 

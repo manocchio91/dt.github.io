@@ -15,5 +15,7 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.tsx', 'src/**/*.test.ts'],
     setupFiles: ['src/test/setup.ts'],
+    // test di interfaccia completi (rendering + IndexedDB): margine per macchine lente o CI sotto carico
+    testTimeout: 20_000,
   },
 });

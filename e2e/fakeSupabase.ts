@@ -1,5 +1,6 @@
 import type { Page, Route } from '@playwright/test';
 import { seedCampobasso, type ProjectBundle } from '../packages/domain/src/index';
+import { handleMedia, initialMediaState, type MediaState } from './fakeMedia';
 
 /**
  * Backend Supabase SIMULATO per gli E2E (Auth + PostgREST minimi).
@@ -14,7 +15,7 @@ export const USER = { id: '00000000-0000-4000-8000-00000000e2e1', email: 'tecnic
 
 type Role = 'viewer' | 'editor' | 'approver' | 'admin';
 
-export interface FakeState {
+export interface FakeState extends MediaState {
   memberships: { organization_id: string; user_id: string; role: Role; name: string }[];
   docs: Record<string, { bundle: ProjectBundle; version: number; org: string }>;
   prefs: Record<string, unknown>;
@@ -32,6 +33,7 @@ export function initialState(): FakeState {
     docs: { [demo.project.id]: { bundle: demo, version: 1, org: ORG_A } },
     prefs: {},
     prefWrites: [],
+    ...initialMediaState(),
     rpcCalls: [],
   };
 }
@@ -63,6 +65,8 @@ export async function installFakeSupabase(page: Page, state: FakeState) {
     }
     const authed = (req.headers()['authorization'] ?? '') === `Bearer token-${USER.id}`;
     const p = url.pathname;
+    const roleIn = (org: string) => state.memberships.find((m) => m.organization_id === org && m.user_id === USER.id)?.role;
+    if (await handleMedia(route, state, roleIn, authed ? USER.id : null)) return;
 
     if (p === '/auth/v1/token') {
       const body = req.postDataJSON() as { email?: string; password?: string };

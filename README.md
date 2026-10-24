@@ -7,7 +7,7 @@
 
 > L’app non prende decisioni al posto delle persone. Rende leggibili dati, ipotesi, limiti e alternative.
 
-Stato attuale: **Milestone 0 (integrità)** completata — [report](docs/report-milestone-0.md). **Milestone 1**: Supabase (auth, tenant, RLS, storage) — [docs/11](docs/11-supabase.md); onboarding per profilo e interfaccia per ruolo — [docs/12](docs/12-onboarding-e-ruoli.md).
+Stato attuale: **Milestone 0 (integrità)** completata — [report](docs/report-milestone-0.md). **Milestone 1**: Supabase (auth, tenant, RLS, storage) — [docs/11](docs/11-supabase.md); onboarding per profilo e interfaccia per ruolo — [docs/12](docs/12-onboarding-e-ruoli.md); foto e documenti — [docs/13](docs/13-foto-documenti-storage-privacy.md). Prossimo passo: [test su Supabase reale](docs/14-piano-test-supabase-reale.md).
 
 ## Avvio
 
@@ -54,6 +54,7 @@ docs/                documenti di progetto 01–10 e report di milestone
 - Costo prototipo separato da CAPEX/OPEX/acqua dell’intervento.
 - Errori dei connettori esposti all’utente: mai valori sostitutivi.
 - Adapter DEMO non utilizzabili in modalità Pilota calibrato.
+- Foto e documenti: tipo reale verificato, EXIF/GPS rimossi prima del salvataggio, posizione solo con consenso, storage privato con URL firmati di 60 secondi, nessun file senza contesto. Nessun antivirus (in roadmap).
 
 ## Dati e licenze
 

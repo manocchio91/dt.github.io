@@ -11,5 +11,8 @@
     "@turf/boolean-point-in-polygon": "^7.2.0",
     "@turf/kinks": "^7.2.0",
     "@types/geojson": "^7946.0.16"
+  },
+  "devDependencies": {
+    "piexifjs": "^1.0.6"
   }
 }
