@@ -126,8 +126,10 @@ export function AuthPage() {
                   </label>
                   {auth.memberships.map((m) => (
                     <label key={m.organizationId} className="flex min-h-11 items-center gap-2 rounded-lg border-2 border-sand-200 px-3 text-sm">
-                      <input type="radio" name="org" className="size-5" checked={auth.current?.organizationId === m.organizationId} onChange={() => auth.selectOrganization(m.organizationId)} />
-                      <strong>{m.organizationName}</strong> — ruolo: {ROLE_LABEL[m.role]}
+                      <input type="radio" name="org" className="size-5 shrink-0" checked={auth.current?.organizationId === m.organizationId} onChange={() => auth.selectOrganization(m.organizationId)} />
+                      <span className="min-w-0 [overflow-wrap:anywhere]">
+                        <strong>{m.organizationName}</strong> — ruolo: {ROLE_LABEL[m.role]}
+                      </span>
                     </label>
                   ))}
                 </div>
