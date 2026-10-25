@@ -2,9 +2,19 @@ import { hashOf, type ProjectBundle } from '@mdt/domain';
 import type { Repository } from './repository';
 import type { SupabaseLike } from './supabase';
 
+/** Dettagli tecnici del conflitto (mostrati solo espandendo "Dettagli tecnici"). */
+export interface ConflictInfo {
+  codice: string;
+  versioneAttesa: number | null;
+  versioneTrovata: number | null;
+  aggiornatoIl: string | null;
+}
+
+export const CONFLICT_MESSAGE = 'Questo progetto è stato aggiornato da un’altra persona. Ricarica i dati prima di salvare nuovamente.';
+
 export class ConflictError extends Error {
-  constructor() {
-    super('Il progetto è stato modificato da un altro utente (o non è più accessibile). Ricarica per vedere la versione aggiornata: le tue ultime modifiche non sono state salvate.');
+  constructor(readonly info: ConflictInfo = { codice: 'MDT_CONFLITTO_VERSIONE', versioneAttesa: null, versioneTrovata: null, aggiornatoIl: null }) {
+    super(CONFLICT_MESSAGE);
     this.name = 'ConflictError';
   }
 }
@@ -19,10 +29,29 @@ export class PermissionError extends Error {
 interface PgError {
   code?: string;
   message: string;
+  details?: string | null;
+  hint?: string | null;
+}
+
+function conflictInfo(e: PgError): ConflictInfo {
+  let d: Record<string, unknown> = {};
+  try {
+    d = e.details ? (JSON.parse(e.details) as Record<string, unknown>) : {};
+  } catch {
+    d = {};
+  }
+  const num = (x: unknown) => (typeof x === 'number' ? x : null);
+  return {
+    codice: typeof d.codice === 'string' ? d.codice : 'MDT_CONFLITTO_VERSIONE',
+    versioneAttesa: num(d.versione_attesa),
+    versioneTrovata: num(d.versione_trovata),
+    aggiornatoIl: typeof d.aggiornato_il === 'string' ? d.aggiornato_il : null,
+  };
 }
 
 function toError(e: PgError): Error {
-  if (e.code === '40001' || /Conflitto/.test(e.message)) return new ConflictError();
+  // PT409 (risposta HTTP 409 di PostgREST); 40001 resta riconosciuto per i server non ancora aggiornati
+  if (e.code === 'PT409' || e.hint === 'MDT_CONFLITTO_VERSIONE' || e.code === '40001') return new ConflictError(conflictInfo(e));
   if (e.code === '42501' || /row-level security|permission denied/i.test(e.message)) return new PermissionError();
   return new Error(e.message);
 }

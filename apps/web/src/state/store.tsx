@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { seedCampobasso, seedVineyard, withAudit, type ProjectBundle } from '@mdt/domain';
 import { createRepository, type Repository } from './repository';
-import { PermissionError } from './supabaseRepository';
+import { ConflictError, PermissionError, type ConflictInfo } from './supabaseRepository';
 
 interface StoreValue {
   ready: boolean;
@@ -14,6 +14,9 @@ interface StoreValue {
   openDemo(kind: 'urban' | 'agriculture'): Promise<string>;
   error: string | null;
   clearError(): void;
+  /** conflitto di salvataggio in attesa di una scelta dell’utente (ricaricare o annullare) */
+  conflict: ConflictInfo | null;
+  resolveConflict(action: 'reload' | 'cancel'): Promise<void>;
   kind: Repository['kind'];
   reload(): Promise<void>;
 }
@@ -42,6 +45,7 @@ export function StoreProvider({
   const [projects, setProjects] = useState<ProjectBundle[]>([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<ConflictInfo | null>(null);
   // riferimento sempre aggiornato: evita aggiornamenti persi con chiamate ravvicinate
   const latest = useRef<ProjectBundle[]>([]);
   latest.current = projects;
@@ -74,9 +78,14 @@ export function StoreProvider({
         latest.current = [bundle, ...latest.current.filter((p) => p.project.id !== bundle.project.id)];
         setProjects(latest.current);
       } catch (e) {
+        if (e instanceof ConflictError) {
+          // nessun nuovo salvataggio automatico: l'utente sceglie se ricaricare
+          setConflict(e.info);
+          throw e;
+        }
         const name = (e as Error).name;
         setError(
-          name === 'ConflictError' || name === 'PermissionError'
+          name === 'PermissionError'
             ? (e as Error).message
             : `Salvataggio non riuscito: i dati potrebbero non essere persistiti. ${(e as Error).message ?? ''}`,
         );
@@ -127,9 +136,17 @@ export function StoreProvider({
     [projects, save],
   );
 
+  const resolveConflict = useCallback(
+    async (action: 'reload' | 'cancel') => {
+      if (action === 'reload') await reload();
+      setConflict(null);
+    },
+    [reload],
+  );
+
   const value = useMemo(
-    () => ({ ready, persistent, projects, get, save, update, remove, openDemo, error, clearError: () => setError(null), kind: repo.kind, reload }),
-    [ready, persistent, projects, get, save, update, remove, openDemo, error, repo.kind, reload],
+    () => ({ ready, persistent, projects, get, save, update, remove, openDemo, error, clearError: () => setError(null), conflict, resolveConflict, kind: repo.kind, reload }),
+    [ready, persistent, projects, get, save, update, remove, openDemo, error, conflict, resolveConflict, repo.kind, reload],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
