@@ -80,6 +80,15 @@ P0 = Milestone 0 (integrità) · P1 = Milestone 1 (MVP pilota) · P2 = Milestone
 | B-143 | Politica di conservazione a tempo per weather_forecast_points (oggi illimitata) | F04 |
 | B-144 | Backtest Open-Meteo vs osservazioni successive e uso come covariata nel backtest di Timestral | F31 |
 
+### Account, organizzazioni e concorrenza (migrazione 0010)
+
+| ID | Elemento | F |
+|---|---|---|
+| B-150 | Conflitto di salvataggio HTTP 409 (PT409) con avviso semplice, ultimo amministratore verificato a fine transazione, eliminazione di organizzazioni e utenti senza blocchi — **fatto (verificato su Supabase di staging)** | F26 |
+| B-151 | Interfaccia amministrativa (fuori dal percorso ordinario) per eliminare un’organizzazione con conferma del nome | F26 |
+| B-152 | Mostrare “Utente eliminato” dove l’interfaccia indicherà proprietario o autore di una risorsa | F21 |
+| B-153 | Pseudonimizzare gli identificativi di utenti eliminati presenti nei dettagli di `audit_logs` (es. appartenenze) | F21 |
+
 ## P2 — Milestone 2
 
 | ID | Elemento | F |
