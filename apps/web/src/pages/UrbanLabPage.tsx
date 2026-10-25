@@ -244,6 +244,8 @@ export default function UrbanLabPage() {
       <WeatherPanel bundle={bundle} />
       <GuideBanner
         readOnlyHint="Sola lettura: consulta baseline, scenari e risultati; il confronto è nella pagina “Confronto e decisione”."
+        whenDone={{ label: 'confronta gli scenari e registra la decisione', to: `/progetti/${bundle.project.id}/confronto` }}
+        where={{ step: 3, what: 'il calore dell’area oggi (baseline), i dati meteo e gli scenari di intervento.', why: 'senza un punto di partenza bloccato non si può dire quanto un intervento migliori davvero.' }}
         steps={[
           { done: !!(area && aoiOk), label: 'definisci l’area', anchor: 'u1' },
           { done: !!baseline, label: 'crea la baseline (periodo e ora)', anchor: 'u2' },
@@ -351,7 +353,13 @@ export default function UrbanLabPage() {
                   {baseline.isDemo && <span className="ml-2 font-bold text-ochre-800">DEMO</span>}
                 </p>
                 <p className="text-xs text-sand-600">
-                  Bloccata il {new Date(baseline.lockedAt).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })} · hash <code>{baseline.contentHash.slice(0, 12)}…</code> · integrità{' '}
+                  Bloccata il {new Date(baseline.lockedAt).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })} ·{' '}
+                  {mode === 'tecnica' && (
+                    <>
+                      hash <code>{baseline.contentHash.slice(0, 12)}…</code> ·{' '}
+                    </>
+                  )}
+                  integrità{' '}
                   {verifyBaselineIntegrity(baseline) ? '✔ verificata' : '✖ NON corrispondente'} {baseline.parentId && `· deriva da v${baselines.find((b) => b.id === baseline.parentId)?.version ?? '?'}`}
                 </p>
                 <div className="overflow-x-auto">
@@ -683,8 +691,12 @@ export default function UrbanLabPage() {
                     </div>
                   )}
                   <p className="text-xs text-sand-600">
-                    Modello {run.modelRef} · costi {run.costModelRef} · input <code>{run.inputHash.slice(0, 12)}…</code> · output <code>{run.outputHash ? `${run.outputHash.slice(0, 12)}…` : '—'}</code> · calcolato il{' '}
-                    {new Date(run.computedAt).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })}. Stesso input → stesso output: il calcolo è deterministico.
+                    {mode === 'tecnica' && (
+                      <>
+                        Modello {run.modelRef} · costi {run.costModelRef} · input <code>{run.inputHash.slice(0, 12)}…</code> · output <code>{run.outputHash ? `${run.outputHash.slice(0, 12)}…` : '—'}</code> ·{' '}
+                      </>
+                    )}
+                    Calcolato il {new Date(run.computedAt).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })}. Stesso input → stesso output: il calcolo è deterministico{mode === 'tecnica' ? '.' : ' (modello, versioni e impronte nella modalità tecnica).'}
                   </p>
                   <details open={mode === 'tecnica'}>
                     <summary className="cursor-pointer text-sm font-semibold text-petrol-700">Come è calcolato</summary>

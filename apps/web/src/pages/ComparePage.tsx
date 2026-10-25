@@ -21,6 +21,7 @@ import { Alert, DemoRibbon, Field, Section, Term } from '../components/ui';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { downloadText } from '../state/store';
 import { usePermissions } from '../state/permissions';
+import { PathGuide } from '../components/guide';
 
 type Triple = [number, number, number];
 const eur = (t: Triple, unit = '€') =>
@@ -160,6 +161,14 @@ export default function ComparePage() {
         <h1 className="text-2xl font-extrabold text-petrol-900">Confronto scenari e decisione</h1>
       </div>
       {bundle.project.mode === 'demo' && <DemoRibbon />}
+      <PathGuide
+        where={{
+          step: [5, 6],
+          what: 'gli scenari calcolati affiancati: riduzione del calore stimata, costi, acqua, manutenzione e incertezza.',
+          why: 'la scelta resta umana: qui la motivi e la registri, con autore, data e versione.',
+          next: { label: 'pianifica la verifica del risultato', to: `/progetti/${bundle.project.id}/verifica` },
+        }}
+      />
 
       <Section title="Scenari da confrontare">
         {withRuns.length < 2 ? (

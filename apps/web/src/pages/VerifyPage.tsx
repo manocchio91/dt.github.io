@@ -16,6 +16,7 @@ import { MapView } from '../components/MapView';
 import { Alert, Field, Section } from '../components/ui';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { usePermissions } from '../state/permissions';
+import { PathGuide } from '../components/guide';
 
 const OUTPUT_OPTIONS = [
   { key: 'delta_t_surface', variable: 'temperatura_superficiale', label: 'Riduzione T superficiale media' },
@@ -84,6 +85,7 @@ export default function VerifyPage() {
         <h1 className="text-2xl font-extrabold text-petrol-900">Verifica ex-post</h1>
         <p className="text-sm">osservare → simulare → decidere → intervenire → misurare → apprendere</p>
       </div>
+      <PathGuide where={{ step: 7, what: 'quanto previsto confrontato con quanto misurato dopo l’intervento.', why: 'solo la verifica dice se la scelta ha funzionato e cosa migliorare la prossima volta.' }} />
       {msg && <Alert tone="info">{msg}</Alert>}
 
       {withRuns.length === 0 ? (

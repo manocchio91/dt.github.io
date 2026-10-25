@@ -17,7 +17,7 @@ import { Alert, Field, Section, Term } from '../components/ui';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { todayRome } from '../state/store';
 import { usePermissions } from '../state/permissions';
-import { parseCoordinates } from '../components/guide';
+import { parseCoordinates, PathGuide } from '../components/guide';
 
 
 export default function AreaPage() {
@@ -134,7 +134,7 @@ export default function AreaPage() {
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <p className="text-sm text-sand-600">{bundle.project.name}</p>
-          <h1 className="text-2xl font-extrabold text-petrol-900">{isAgri ? 'Parcella e sottozone' : 'Area di interesse (AOI)'}</h1>
+          <h1 className="text-2xl font-extrabold text-petrol-900">{isAgri ? 'Parcella e sottozone' : 'Area di interesse'}</h1>
         </div>
         {area && (
           <Link to={labPath} className="btn-primary">
@@ -143,6 +143,14 @@ export default function AreaPage() {
         )}
       </div>
 
+      <PathGuide
+        where={{
+          step: 2,
+          what: isAgri ? 'i confini della parcella e delle sue sottozone.' : 'i confini dell’area da studiare (piazza, strada o parco).',
+          why: 'tutti gli indicatori e i dati meteo si riferiscono a quest’area.',
+          next: area ? { label: 'osserva gli indicatori nel Decision Lab', to: labPath } : undefined,
+        }}
+      />
       {msg && <Alert tone="info">{msg}</Alert>}
 
       <MapView

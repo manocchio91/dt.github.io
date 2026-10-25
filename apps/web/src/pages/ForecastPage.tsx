@@ -27,6 +27,7 @@ import { formatNumber } from '../components/DataBadge';
 import { ForecastChart } from '../components/ForecastChart';
 import { SourceBadge } from '../components/SourceBadge';
 import { useWorkMode } from '../state/preferences';
+import { PathGuide } from '../components/guide';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { usePermissions } from '../state/permissions';
 import { useAuth } from '../state/auth';
@@ -172,6 +173,14 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
           <p>{urban ? FORECAST_TEXT.urban : FORECAST_TEXT.agri}</p>
         </Alert>
       </header>
+      <PathGuide
+        where={{
+          step: 4,
+          what: urban ? 'quanto potrebbe salire la temperatura nelle prossime ore e con quale probabilità supera la soglia.' : 'come potrebbero cambiare umidità del suolo e temperatura e con quale probabilità superano la soglia dell’agronomo.',
+          why: 'sapere in anticipo quando potrebbe esserci una criticità aiuta a verificarla in tempo.',
+          next: urban ? { label: 'confronta gli scenari e registra la decisione', to: `/progetti/${bundle.project.id}/confronto` } : { label: 'torna alle zone da controllare nel Decision Lab', to: `/progetti/${bundle.project.id}/agricolo` },
+        }}
+      />
 
       {result && finding && chartForecast && peak >= 0 && (
         <section aria-labelledby="sintesi-h" className="card space-y-2" data-testid="forecast-summary">
