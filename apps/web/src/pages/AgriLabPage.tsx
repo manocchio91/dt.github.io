@@ -182,7 +182,6 @@ export default function AgriLabPage() {
         </Link>
       </div>
       {bundle.project.mode === 'demo' && <DemoRibbon />}
-      <WeatherPanel bundle={bundle} />
       <GuideBanner
         readOnlyHint="Sola lettura: consulta la zona da controllare, le componenti e il confronto tra misure."
         whenDone={{ label: 'verifica come ha risposto il vigneto', to: '#a9' }}
@@ -195,6 +194,7 @@ export default function AgriLabPage() {
           { done: bundle.decisions.some((d) => d.sector === 'agriculture'), label: 'confronta le misure e registra la decisione', anchor: 'a7' },
         ]}
       />
+      <WeatherPanel bundle={bundle} />
 
       {first && (
         <section className="card border-l-8 border-l-alert-800" aria-labelledby="first-zone">

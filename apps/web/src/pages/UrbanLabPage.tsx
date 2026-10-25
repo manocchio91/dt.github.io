@@ -241,7 +241,6 @@ export default function UrbanLabPage() {
         </div>
       </div>
       {isDemo && <DemoRibbon />}
-      <WeatherPanel bundle={bundle} />
       <GuideBanner
         readOnlyHint="Sola lettura: consulta baseline, scenari e risultati; il confronto è nella pagina “Confronto e decisione”."
         whenDone={{ label: 'confronta gli scenari e registra la decisione', to: `/progetti/${bundle.project.id}/confronto` }}
@@ -255,6 +254,7 @@ export default function UrbanLabPage() {
           { done: scenarios.length >= 2, label: 'crea un secondo scenario da confrontare', anchor: 'u5' },
         ]}
       />
+      <WeatherPanel bundle={bundle} />
 
       <Section id="u1" step={1} title="Area reale">
         {area && aoiOk ? (
