@@ -10,7 +10,8 @@
  *   SUPABASE_ANON_KEY            chiave anon pubblica
  *   SUPABASE_SERVICE_ROLE_KEY    solo per creare/eliminare gli utenti di prova e per pulizia
  *   MDT_CONFIRM_TEST_PROJECT=yes conferma esplicita che il progetto NON è di produzione
- * Opzioni: --slow (attende la scadenza reale degli URL firmati, 65 s), --keep (non ripulisce)
+ * Opzioni: --slow (attende la scadenza reale degli URL firmati, 65 s), --keep (non ripulisce),
+ *          --senza-funzioni (salta i casi M che richiedono la Edge Function media-gateway non ancora pubblicata)
  *
  * Uso:  node --env-file=.env.supabase-test scripts/supabase-real/verify.mjs
  */
@@ -23,6 +24,7 @@ import { stripMetadata } from '../../packages/domain/src/media/files.ts';
 const { SUPABASE_URL: URL_, SUPABASE_ANON_KEY: ANON, SUPABASE_SERVICE_ROLE_KEY: SERVICE, MDT_CONFIRM_TEST_PROJECT } = process.env;
 const SLOW = process.argv.includes('--slow');
 const KEEP = process.argv.includes('--keep');
+const NO_FUNCTIONS = process.argv.includes('--senza-funzioni');
 
 if (!URL_ || !ANON || !SERVICE) {
   console.error('Mancano SUPABASE_URL, SUPABASE_ANON_KEY o SUPABASE_SERVICE_ROLE_KEY (usa un file .env locale escluso da Git).');
@@ -45,6 +47,7 @@ function record(id, title, status, evidence = '') {
   console.log(`${status === 'ok' ? '✔' : status === 'ko' ? '✖' : '·'} ${id} ${title}${evidence ? ` — ${evidence}` : ''}`);
 }
 async function check(id, title, fn) {
+  if (NO_FUNCTIONS && id.startsWith('M')) return record(id, title, 'skip', 'richiede la Edge Function media-gateway (non pubblicata)');
   try {
     const ev = await fn();
     record(id, title, 'ok', ev ?? '');
@@ -173,7 +176,7 @@ await check('S5', 'Concorrenza: il secondo salvataggio riceve conflitto', async 
   const v2 = await E.client.rpc('save_project', { p_organization_id: orgA, p_bundle: { ...proj, audit: [...proj.audit, { at: new Date().toISOString(), action: 'x', detail: 'x' }] }, p_bundle_hash: 'h', p_expected_version: 1 });
   expect(!v2.error, v2.error?.message);
   const stale = await E.client.rpc('save_project', { p_organization_id: orgA, p_bundle: proj, p_bundle_hash: 'h', p_expected_version: 1 });
-  expect(stale.error?.code === '40001', `atteso 40001, ricevuto ${stale.error?.code}`);
+  expect(stale.error?.code === '40001', `atteso 40001, ricevuto codice=${stale.error?.code} HTTP=${stale.status} dati=${JSON.stringify(stale.data)} messaggio=${String(stale.error?.message ?? '').slice(0, 120)}`);
   proj.audit.push({ at: new Date().toISOString(), action: 'x', detail: 'x' });
   return '40001';
 });
@@ -472,13 +475,23 @@ record('S8', 'Magic link via email', 'skip', 'manuale: verificare la ricezione d
 await finish();
 
 async function finish() {
+  // ogni eliminazione è verificata: una pulizia fallita non viene mai dichiarata riuscita
+  const cleanupErrors = [];
   if (!KEEP) {
     for (const m of created.media) {
-      await admin.storage.from('project-media').remove([m.path]);
-      await admin.from('media_assets').delete().eq('id', m.id);
+      const s1 = await admin.storage.from('project-media').remove([m.path]);
+      if (s1.error) cleanupErrors.push(`file ${m.id.slice(0, 8)}: ${s1.error.message}`);
+      const s2 = await admin.from('media_assets').delete().eq('id', m.id);
+      if (s2.error) cleanupErrors.push(`scheda ${m.id.slice(0, 8)}: ${s2.error.message}`);
     }
-    for (const o of created.orgs) await admin.from('organizations').delete().eq('id', o);
-    for (const u of created.users) await admin.auth.admin.deleteUser(u);
+    for (const o of created.orgs) {
+      const r = await admin.from('organizations').delete().eq('id', o).select('id');
+      if (r.error || (r.data ?? []).length === 0) cleanupErrors.push(`organizzazione ${String(o).slice(0, 8)}: ${r.error?.message ?? 'non eliminata'}`);
+    }
+    for (const u of created.users) {
+      const r = await admin.auth.admin.deleteUser(u);
+      if (r.error) cleanupErrors.push(`utente ${String(u).slice(0, 8)}: ${r.error.message}`);
+    }
   }
   const ok = results.filter((r) => r.status === 'ok').length;
   const ko = results.filter((r) => r.status === 'ko').length;
@@ -490,7 +503,7 @@ async function finish() {
     `- Ambiente: progetto di TEST su \`${host}\` (riferimento oscurato)`,
     `- Esecuzione: ${run}, ${started.toISOString()} → ${new Date().toISOString()}`,
     `- Esito: ${ok} superati, ${ko} falliti, ${results.length - ok - ko} non eseguiti`,
-    `- Pulizia dei dati di prova: ${KEEP ? 'no (--keep)' : 'sì'}`,
+    `- Pulizia dei dati di prova: ${KEEP ? 'no (--keep)' : cleanupErrors.length ? `**NON riuscita** (${cleanupErrors.length} errori): ${cleanupErrors.join('; ').replace(/\|/g, '/')}` : 'riuscita (ogni eliminazione verificata)'}`,
     '',
     '| ID | Controllo | Esito | Evidenza |',
     '|---|---|---|---|',
@@ -500,5 +513,6 @@ async function finish() {
   ];
   writeFileSync(`docs/reports/supabase-real-${day}-${run}.md`, lines.join('\n') + '\n');
   console.log(`\nReport: docs/reports/supabase-real-${day}-${run}.md`);
-  process.exit(ko ? 1 : 0);
+  if (cleanupErrors.length) console.log(`Pulizia NON riuscita: ${cleanupErrors.length} errori (vedi report)`);
+  process.exit(ko || cleanupErrors.length ? 1 : 0);
 }

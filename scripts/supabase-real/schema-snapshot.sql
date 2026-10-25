@@ -4,7 +4,7 @@
 select jsonb_build_object(
   'migrazioni', (select jsonb_agg(version order by version) from supabase_migrations.schema_migrations),
   'estensioni', (select jsonb_object_agg(extname, extversion || ' @ ' || extnamespace::regnamespace::text) from pg_extension),
-  'tabelle', (select jsonb_agg(c.oid::regclass::text order by 1) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname in ('public', 'app') and c.relkind = 'r'),
+  'tabelle', (select jsonb_agg(c.oid::regclass::text order by c.oid::regclass::text) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname in ('public', 'app') and c.relkind = 'r'),
   'colonne', (select jsonb_object_agg(k, v) from (
       select c.relname || '.' || a.attname k, format_type(a.atttypid, a.atttypmod) || case when a.attnotnull then ' NOT NULL' else '' end
              || coalesce(' DEFAULT ' || pg_get_expr(ad.adbin, ad.adrelid), '') || case when a.attgenerated = 's' then ' GENERATED' else '' end v

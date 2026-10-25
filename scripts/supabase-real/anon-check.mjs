@@ -62,6 +62,16 @@ for (const [fn, args] of rpcs) {
   rec('A-F', `funzione ${fn} da anonimo`, r.status >= 400, `HTTP ${r.status} ${body.slice(0, 80).replace(/\s+/g, ' ')}`);
 }
 
+// PostGIS non più esposto nello schema dell'API (migrazione 0009)
+{
+  const srs = await fetch(`${URL_}/rest/v1/spatial_ref_sys?select=srid&limit=1`, { headers: h });
+  rec('A-PG', 'spatial_ref_sys non raggiungibile via REST', [401, 403, 404].includes(srs.status), `HTTP ${srs.status}`);
+  const del = await fetch(`${URL_}/rest/v1/spatial_ref_sys?srid=eq.4326`, { method: 'DELETE', headers: h });
+  rec('A-PG', 'spatial_ref_sys non modificabile via REST', del.status >= 400, `HTTP ${del.status}`);
+  const ext = await fetch(`${URL_}/rest/v1/rpc/st_estimatedextent`, { method: 'POST', headers: h, body: JSON.stringify({}) });
+  rec('A-PG', 'st_estimatedextent non esposta via REST', [401, 403, 404].includes(ext.status), `HTTP ${ext.status}`);
+}
+
 {
   const r = await fetch(`${URL_}/rest/v1/rpc/get_shared_project`, { method: 'POST', headers: h, body: JSON.stringify({ p_token: 'token-inesistente-di-verifica' }) });
   const body = await r.text();

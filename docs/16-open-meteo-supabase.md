@@ -144,7 +144,7 @@ Aggiunti a [14-piano-test-supabase-reale.md](14-piano-test-supabase-reale.md) (W
 
 | Passo | Stato |
 | --- | --- |
-| Migrazioni 0001–0008 | **applicate** (`supabase db push --linked`); 0008 ridotta, vedi sotto |
+| Migrazioni 0001–0009 | **applicate** (`supabase db push --linked`); 0008 ridotta; 0009 sposta PostGIS in `extensions` (25/10/2026, report `docs/reports/supabase-postgis-0009-2026-10-25.md`) |
 | Catalogo | 41 tabelle dell'app con RLS e policy, bucket `project-media` privato, trigger su `auth.users`, funzioni di servizio non eseguibili da `authenticated` |
 | Accesso anonimo | **44/44 controlli superati** (`scripts/supabase-real/anon-check.mjs`, report in `docs/reports/supabase-anon-check-2026-10-24.md`) |
 | Edge Function `open-meteo-ingest`, segreti, job pg_cron | **non pubblicati** |
@@ -166,3 +166,5 @@ Soluzioni possibili, da decidere:
    (o reset dello staging con la migrazione 0001 corretta). Risolve tutti e tre i punti.
 2. **Chiedere al supporto Supabase** la revoca dei privilegi su `spatial_ref_sys` e `st_estimatedextent`.
 3. Accettare temporaneamente il rischio sullo staging (nessun dato reale) e risolvere prima della produzione.
+
+**Aggiornamento 25/10/2026:** con la migrazione 0009 PostGIS è nello schema `extensions`. Il Security Advisor non segnala più errori (0 ERROR, 12 WARN voluti); i problemi su `spatial_ref_sys` e `st_estimatedextent` sono risolti. I test reali hanno però rivelato tre difetti preesistenti (conflitto di versione con SQLSTATE 40001 → HTTP 504 via PostgREST; organizzazioni non eliminabili; utenti proprietari di progetti non eliminabili), descritti nel report della 0009 e da correggere con una nuova migrazione.
