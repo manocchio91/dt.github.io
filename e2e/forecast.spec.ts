@@ -15,17 +15,22 @@ async function openForecast(page: import('@playwright/test').Page, demo: RegExp,
   await expect(page.getByRole('heading', { level: 1, name: 'Previsioni' })).toBeVisible();
 }
 
-test('urbano: baseline, banda, soglia, “Motore Timestral non configurato”, registrazione ed ex-post', async ({ page }) => {
+test('urbano: previsione di base, banda, soglia, modello avanzato non disponibile, registrazione ed ex-post', async ({ page }) => {
   await openForecast(page, /Apri la demo urbana/, /\/urbano$/);
-  await expect(page.getByTestId('forecast-badge')).toContainText('STIMATO DA MODELLO — Persistenza stagionale');
+  await expect(page.getByTestId('forecast-badge')).toContainText('STIMATO DA MODELLO — previsione di base');
   await expect(page.getByText(/non stima l’effetto di alberi/)).toBeVisible();
+  await expect(page.getByTestId('forecast-summary')).toBeVisible();
+  // l'intervallo probabilistico resta disponibile nell'approfondimento tecnico, aperto su richiesta
+  await expect(page.getByLabel('Intervallo mostrato')).toBeHidden();
+  await page.getByText('Approfondimento tecnico').click();
   await page.getByLabel('Intervallo mostrato').selectOption('90');
   await expect(page.getByRole('listitem').filter({ hasText: 'intervallo 90%' })).toBeVisible();
 
   await page.getByRole('combobox', { name: /^Modello/ }).selectOption('mistralai/Timestral-5M');
-  await expect(page.getByText('Motore Timestral non configurato').first()).toBeVisible();
+  await expect(page.getByText('Il modello avanzato non è ancora disponibile.')).toBeVisible();
   await expect(page.getByTestId('forecast-badge')).toHaveCount(0);
-  await page.getByRole('combobox', { name: /^Modello/ }).selectOption('baseline-persistenza-stagionale');
+  await page.getByRole('button', { name: 'Mostra la previsione di base' }).click();
+  await expect(page.getByTestId('forecast-badge')).toContainText('previsione di base');
 
   await page.getByRole('button', { name: 'Registra questa previsione nel progetto' }).click();
   await expect(page.getByText(/compare nell’export del dossier/)).toBeVisible();

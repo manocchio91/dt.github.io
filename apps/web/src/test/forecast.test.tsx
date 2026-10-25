@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { QUANTILE_LEVELS, seedCampobasso, seedVineyard, TIMESTRAL_MODELS, type ProjectBundle } from '@mdt/domain';
+import { finalizeOnboarding, QUANTILE_LEVELS, seedCampobasso, seedVineyard, TIMESTRAL_MODELS, type ProjectBundle } from '@mdt/domain';
 import ForecastPage from '../pages/ForecastPage';
 import { fakeAuth, fakeSession, localRepo, member, remoteRepo, renderApp } from './utils';
 import type { Repository } from '../state/repository';
@@ -18,6 +18,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** Preferenze salvate con la modalità tecnica: tutti i dettagli aperti. */
+function setTechnicalMode() {
+  const p = finalizeOnboarding({ profile: 'tecnico_comunale', sector: 'urban', decision: 'ridurre_calore', area: { kind: 'demo' }, data: [], mode: 'tecnica' }, new Date());
+  localStorage.setItem('mdt:onboarding:v1', JSON.stringify(p));
+}
+
 const open = (b: ProjectBundle, repo: Repository = localRepo([b]), auth = fakeAuth()) =>
   renderApp(<ForecastPage />, { repo, auth, route: `/progetti/${b.project.id}/previsioni`, path: '/progetti/:id/previsioni' });
 
@@ -25,8 +31,10 @@ describe('F31 — Previsioni nel caso urbano (Campobasso)', () => {
   it('mostra baseline, “ora”, banda, soglia e il disclaimer sugli interventi', async () => {
     open(urban);
     const badge = await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
-    expect(badge.textContent).toMatch(/STIMATO DA MODELLO — Persistenza stagionale/);
+    expect(badge.textContent).toMatch(/STIMATO DA MODELLO — previsione di base/);
     expect(badge.textContent).not.toMatch(/Timestral/);
+    // il nome del modello resta nell'approfondimento tecnico
+    expect(within(screen.getByTestId('forecast-technical')).getAllByText(/Persistenza stagionale/).length).toBeGreaterThan(0);
     expect(screen.getByText(/non stima l’effetto di alberi/)).toBeTruthy();
     expect(screen.getByText(/ora: emissione della previsione/)).toBeTruthy();
     expect(screen.getAllByText(/intervallo 80% \(q0,10–q0,90\)/).length).toBeGreaterThan(0);
@@ -72,10 +80,15 @@ describe('F31 — Previsioni nel caso urbano (Campobasso)', () => {
     open(urban);
     await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
     fireEvent.change(screen.getByLabelText('Modello'), { target: { value: 'mistralai/Timestral-5M' } });
-    expect(await screen.findByText('Motore Timestral non configurato', { selector: 'p.font-bold' })).toBeTruthy();
+    expect(await screen.findByText('Il modello avanzato non è ancora disponibile.', { selector: 'p.font-bold' })).toBeTruthy();
+    expect(screen.getByText('Puoi consultare la previsione di base.')).toBeTruthy();
+    expect(screen.getByText('Motore Timestral non configurato', { selector: 'details p' })).toBeTruthy();
     expect(screen.queryByTestId('forecast-badge')).toBeNull();
     expect(screen.queryByText('Valori previsti ora per ora')).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
+    // un clic riporta alla previsione di base, dichiarata come tale
+    fireEvent.click(screen.getByRole('button', { name: 'Mostra la previsione di base' }));
+    expect((await screen.findByTestId('forecast-badge')).textContent).toMatch(/previsione di base/);
   });
 
   it('Timestral con servizio configurato: badge con versione e token di sessione, mai la chiave di servizio', async () => {
@@ -87,6 +100,7 @@ describe('F31 — Previsioni nel caso urbano (Campobasso)', () => {
     });
     vi.stubGlobal('fetch', fetchSpy);
     const session = { ...fakeSession(), access_token: 'jwt-di-sessione' } as ReturnType<typeof fakeSession>;
+    setTechnicalMode();
     open(urban, localRepo([urban]), fakeAuth({ session }));
     await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
     fireEvent.change(screen.getByLabelText('Modello'), { target: { value: 'mistralai/Timestral-5M' } });

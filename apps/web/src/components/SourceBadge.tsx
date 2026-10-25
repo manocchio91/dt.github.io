@@ -38,7 +38,7 @@ export function SourceBadge({ kind, detail, testId }: { kind: SourceKind; detail
     <span data-source={kind} data-testid={testId} title={s.description} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.7rem] font-bold tracking-wide whitespace-nowrap ${s.cls}`}>
       <span aria-hidden="true">{s.symbol}</span>
       {s.label}
-      {detail && <span className="font-semibold normal-case">— {detail}</span>}
+      {detail && <span className="font-semibold normal-case"> — {detail}</span>}
       <span className="sr-only">: {s.description}</span>
     </span>
   );
