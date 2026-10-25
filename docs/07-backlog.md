@@ -112,9 +112,10 @@ P0 = Milestone 0 (integrità) · P1 = Milestone 1 (MVP pilota) · P2 = Milestone
 | B-165 | Proxy autenticato per Timestral (B-131) prima di qualunque collegamento dal sito pubblico | F31 |
 | B-166 | Politica di conservazione dei dati meteorologici (B-143): durata, aggregazione, cancellazione | F04, F25 |
 | B-167 | Decision Lab agricolo robusto a documenti incompleti dal server (un progetto senza fase fenologica blocca la pagina) | F28 |
-| B-168 | Tag `ux-audit-semplificata` pubblicato per errore su 4dfc7f7 invece che sul merge 0fb8ca9: correggerlo richiede di eliminare il tag remoto (decisione del responsabile) | — |
+| B-168 | Tag `ux-audit-semplificata` pubblicato per errore su 4dfc7f7 invece che sul merge 0fb8ca9 — **fatto il 25/10/2026 (tag annotato ricreato su 0fb8ca9, autorizzato dal responsabile)** | — |
 | B-169 | Security Advisor: “leaked password protection” di Supabase Auth disattivata (avviso, piano a pagamento) | F26 |
 | B-170 | GitHub Pages risponde con stato HTTP 404 (pagina di fallback) alle route interne aperte direttamente: funzionano, ma compaiono come errori di rete in console | — |
+| B-171 | Progetto di un’altra organizzazione aperto da link diretto: il messaggio dice “Progetto non trovato in questo browser” anche quando si lavora sull’archivio condiviso (testo da adattare, nessun dato esposto) | F26, F29 |
 
 ## P2 — Milestone 2
 

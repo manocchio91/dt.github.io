@@ -9,7 +9,7 @@
 | --- | --- |
 | Implementato | migrazioni 0007 e 0011, Edge Function `open-meteo-ingest`, job pg_cron, pannello UI, collegamento del sito con la publishable key, adapter per Timestral (non attivo) |
 | Testato in locale | `openMeteoForecast.test.ts`, `supabase/tests/weather.test.ts`, `supabase/tests/schedule0011.test.ts`, `weatherPanel.test.tsx`, `weatherSource.test.ts`, `e2e/weather.spec.ts`, `e2e/header-mobile.spec.ts` |
-| Testato su servizio reale | Open-Meteo + Supabase di staging: 22/22 controlli (`scripts/supabase-real/open-meteo-runtime.mjs`, report `docs/reports/open-meteo-runtime-2026-10-25.md`); interfaccia collegata allo staging su build locale (ruoli, isolamento, acquisizione dalla pagina, responsive) |
+| Testato su servizio reale | Open-Meteo + Supabase di staging: 22/22 controlli (`scripts/supabase-real/open-meteo-runtime.mjs`, report `docs/reports/open-meteo-runtime-2026-10-25.md`); interfaccia collegata allo staging su build locale e **sul sito pubblico con utenti autenticati** (ruoli, isolamento, acquisizione dalla pagina, persistenza, responsive; §13) |
 | Pubblicato | Edge Function e job sullo staging; sito GitHub Pages collegato allo staging |
 | Simulato | E2E dell’interfaccia con Supabase simulato; errore di acquisizione simulato sul database reale |
 | Validato con utenti / scientificamente | no (B-158, B-162, B-163) |
@@ -193,3 +193,26 @@ Dati temporanei della verifica: prefisso `MDT_RUNTIME_TEST_<timestamp>`, creati 
 normali ed eliminati con `delete_organization` e Auth Admin, con rilettura dei conteggi.
 Rischi residui: dato territoriale modellato (non sensore), soglie dimostrative, nessuna
 validazione con utenti, Timestral non attivo, conservazione dei dati senza scadenza (B-162–B-166).
+
+## 13. Chiusura controllata e test autenticato sul sito pubblico (25/10/2026)
+
+Verifica eseguita su `https://manocchio91.github.io/dt.github.io/` con utenti e organizzazioni
+temporanei (prefisso `MDT_PUBLIC_TEST_<timestamp>`, creati con Auth Admin e `create_organization`;
+progetti e località creati dal sito). Gli accessi sono stati inseriti dal responsabile nel
+browser; il resto del percorso è stato eseguito con clic reali.
+
+| Verifica | Esito |
+| --- | --- |
+| Editor | organizzazione scelta; guida in 6 domande per urbano e agricolo; progetti salvati su Supabase; punto di acquisizione creato; “Aggiorna dati” → 77 ore per ciascun progetto (cella urbana 41,5861/14,6614 a 700 m, agricola 41,8036/14,9055 a 429 m); sintesi in parole semplici con dettagli chiusi; ET0, VPD e suolo solo nei dettagli; limite di 10 minuti visibile |
+| Lettore | vede i dati, nessun pulsante di modifica; dal server: aggiornamento 403, nuova località 403, salvataggio 42501, modifica 0 righe |
+| Esterno | nessun progetto del Comune nell’elenco; link diretto → “Progetto non trovato”; 0 righe in progetti, documenti e tabelle meteo; aggiornamento 404 |
+| Persistenza | dopo ricaricamento e dopo uscita e nuovo accesso i progetti e i dati restano |
+| Rete e chiavi | il browser chiama solo Supabase (REST e Edge Function), mai `api.open-meteo.com`; bundle senza secret key né JWT (13 file); sessione con ruolo `authenticated` |
+| Responsive e tastiera | 320, 375, 390, 768 px senza scorrimento orizzontale (24 controlli); a 375 px focus visibile e dettagli apribili con Invio |
+| Contenuti | nessun dato Timestral; nessuna prescrizione automatica (l’irrigazione compare solo come alternativa “non valutabile senza verifica”, decisa dall’agronomo) |
+| Pulizia | 4 utenti, 2 organizzazioni, 2 progetti, 2 località, 2 acquisizioni, 154 previsioni, 516 osservazioni eliminati; rilettura globale: 0 righe di dati e 0 righe di audit con il prefisso |
+
+**Stato del job dopo la pulizia:** attivo (`0 */3 * * *`), ma senza località attive: è *attivo ma
+fermo sui dati* finché un utente autenticato non crea un progetto con un punto di acquisizione.
+Un’esecuzione con lo stesso comando del job risponde HTTP 200 con
+`{"results":[],"completate":0,"errori":0}`: l’assenza di località è un’esecuzione valida, non un errore.
