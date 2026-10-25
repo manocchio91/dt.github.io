@@ -35,7 +35,7 @@ export function AuthPage() {
         <Section title="Archivio condiviso" aside={<StatusBadge status="non_disponibile" />}>
           <p className="text-sm">
             Supabase non è configurato per questa installazione: i progetti restano solo in questo browser. Per attivare account, organizzazioni e permessi, l’amministratore deve impostare
-            <code className="mx-1">VITE_SUPABASE_URL</code> e <code className="mx-1">VITE_SUPABASE_ANON_KEY</code> e applicare le migrazioni in <code>supabase/migrations</code>.
+            <code className="mx-1">VITE_SUPABASE_URL</code> e <code className="mx-1">VITE_SUPABASE_PUBLISHABLE_KEY</code> e applicare le migrazioni in <code>supabase/migrations</code>.
           </p>
         </Section>
       </div>
@@ -126,8 +126,10 @@ export function AuthPage() {
                   </label>
                   {auth.memberships.map((m) => (
                     <label key={m.organizationId} className="flex min-h-11 items-center gap-2 rounded-lg border-2 border-sand-200 px-3 text-sm">
-                      <input type="radio" name="org" className="size-5" checked={auth.current?.organizationId === m.organizationId} onChange={() => auth.selectOrganization(m.organizationId)} />
-                      <strong>{m.organizationName}</strong> — ruolo: {ROLE_LABEL[m.role]}
+                      <input type="radio" name="org" className="size-5 shrink-0" checked={auth.current?.organizationId === m.organizationId} onChange={() => auth.selectOrganization(m.organizationId)} />
+                      <span className="min-w-0 [overflow-wrap:anywhere]">
+                        <strong>{m.organizationName}</strong> — ruolo: {ROLE_LABEL[m.role]}
+                      </span>
                     </label>
                   ))}
                 </div>

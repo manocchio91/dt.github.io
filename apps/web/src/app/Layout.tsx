@@ -35,10 +35,11 @@ export function Layout() {
               <span className="block text-xs text-sand-600">Climate Decision Lab</span>
             </span>
           </NavLink>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          {/* il nome dell'organizzazione può essere lungo: va a capo dentro l'intestazione */}
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
             <NavLink
               to="/accesso"
-              className="rounded-full border-2 border-petrol-500 bg-white px-3 py-1 text-xs font-bold text-petrol-900"
+              className="max-w-full rounded-full border-2 border-petrol-500 bg-white px-3 py-1 text-xs font-bold text-petrol-900 [overflow-wrap:anywhere]"
               title={kind === 'supabase' ? 'Archivio condiviso dell’organizzazione' : 'I progetti restano in questo browser'}
             >
               {kind === 'supabase' && current ? `${current.organizationName} · ${ROLE_LABEL[current.role]}` : session ? 'Questo browser · scegli organizzazione' : client ? 'Questo browser · Accedi' : 'Questo browser'}

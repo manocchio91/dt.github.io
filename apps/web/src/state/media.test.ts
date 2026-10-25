@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { mediaPath, stripJpegMetadata, stripMetadata, stripPngMetadata } from './media';
-import { readSupabaseConfig } from './supabase';
+import { isSecretKey, readSupabaseConfig } from './supabase';
 
 const ORG = '00000000-0000-4000-8000-00000000d3e0';
 const PRJ = '00000000-0000-4000-8000-0000000c0b01';
@@ -54,6 +54,21 @@ describe('Configurazione Supabase', () => {
     expect(readSupabaseConfig({} as ImportMetaEnv)).toBeNull();
     expect(readSupabaseConfig({ VITE_SUPABASE_URL: 'https://x.supabase.co' } as ImportMetaEnv)).toBeNull();
     expect(readSupabaseConfig({ VITE_SUPABASE_URL: 'ftp://x', VITE_SUPABASE_ANON_KEY: 'k' } as ImportMetaEnv)).toBeNull();
-    expect(readSupabaseConfig({ VITE_SUPABASE_URL: 'https://x.supabase.co', VITE_SUPABASE_ANON_KEY: 'k' } as ImportMetaEnv)).toEqual({ url: 'https://x.supabase.co', anonKey: 'k' });
+    expect(readSupabaseConfig({ VITE_SUPABASE_URL: 'https://x.supabase.co', VITE_SUPABASE_ANON_KEY: 'k' } as ImportMetaEnv)).toEqual({ url: 'https://x.supabase.co', key: 'k' });
+  });
+
+  it('la publishable key ha la precedenza sulla vecchia anon key', () => {
+    const env = { VITE_SUPABASE_URL: 'https://x.supabase.co', VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_abc', VITE_SUPABASE_ANON_KEY: 'k' } as ImportMetaEnv;
+    expect(readSupabaseConfig(env)).toEqual({ url: 'https://x.supabase.co', key: 'sb_publishable_abc' });
+  });
+
+  it('una chiave segreta o di servizio non entra mai nel client', () => {
+    const jwt = (role: string) => `eyJhbGciOiJIUzI1NiJ9.${btoa(JSON.stringify({ role })).replace(/=+$/, '')}.firma`;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    for (const key of ['sb_secret_abc', jwt('service_role'), jwt('authenticated'), 'eyJ.non-decodificabile.x']) {
+      expect(readSupabaseConfig({ VITE_SUPABASE_URL: 'https://x.supabase.co', VITE_SUPABASE_PUBLISHABLE_KEY: key } as ImportMetaEnv), key).toBeNull();
+    }
+    expect(isSecretKey(jwt('anon'))).toBe(false);
+    expect(isSecretKey('sb_publishable_abc')).toBe(false);
   });
 });

@@ -2,7 +2,11 @@
 // Chiamate ammesse:
 //  * pianificate (pg_cron + pg_net) con intestazione x-cron-secret = OPEN_METEO_CRON_SECRET:
 //    body {"all_active": true} oppure {"location_id": "<uuid>"};
-//  * manuali dall'app con il token dell'utente (ruolo "modifica", limite 10 minuti): body {"location_id": "<uuid>"}.
+//  * manuali dall'app con il token dell'utente (ruolo "modifica", limite 10 minuti): body {"location_id": "<uuid>"};
+//  * GET: controllo di salute, senza dati né configurazione.
+// Pubblicata con --no-verify-jwt: il job pianificato non ha un token utente. L'autenticazione è
+// qui: segreto del job confrontato a tempo costante, oppure token dell'utente verificato dal
+// database (PostgREST) dentro weather_authorize_manual.
 // La logica è in ../_shared/weatherIngest.ts (testata su PGlite). NON eseguita localmente: Deno non installato.
 import { createClient } from 'npm:@supabase/supabase-js@2.75.0';
 import { authorizeManual, ingestAllActive, ingestLocation, IngestError, type IngestClient } from '../_shared/weatherIngest.ts';
@@ -10,7 +14,7 @@ import { authorizeManual, ingestAllActive, ingestLocation, IngestError, type Ing
 const cors = {
   'access-control-allow-origin': Deno.env.get('ALLOWED_ORIGIN') ?? '*',
   'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
-  'access-control-allow-methods': 'POST, OPTIONS',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
 };
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { ...cors, 'content-type': 'application/json' } });
 const log = (msg: string) => console.log(msg); // solo identificativi tecnici, esiti e conteggi
@@ -24,6 +28,7 @@ function sameSecret(a: string, b: string): boolean {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
+  if (req.method === 'GET') return json(200, { servizio: 'open-meteo-ingest', stato: 'attivo' });
   if (req.method !== 'POST') return json(405, { error: 'Metodo non ammesso' });
   let body: { location_id?: string; all_active?: boolean };
   try {

@@ -44,7 +44,7 @@ export function Section({ id, step, title, children, aside }: { id?: string; ste
   return (
     <section id={id} aria-labelledby={id ? `${id}-h` : undefined} className="card scroll-mt-20">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 id={id ? `${id}-h` : undefined} className="h-section flex items-center gap-2">
+        <h2 id={id ? `${id}-h` : undefined} className="h-section flex min-w-0 items-center gap-2 [overflow-wrap:anywhere]">
           {step !== undefined && (
             <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-petrol-700 text-sm text-white">{step}</span>
           )}
