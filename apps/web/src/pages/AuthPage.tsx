@@ -35,7 +35,7 @@ export function AuthPage() {
         <Section title="Archivio condiviso" aside={<StatusBadge status="non_disponibile" />}>
           <p className="text-sm">
             Supabase non è configurato per questa installazione: i progetti restano solo in questo browser. Per attivare account, organizzazioni e permessi, l’amministratore deve impostare
-            <code className="mx-1">VITE_SUPABASE_URL</code> e <code className="mx-1">VITE_SUPABASE_ANON_KEY</code> e applicare le migrazioni in <code>supabase/migrations</code>.
+            <code className="mx-1">VITE_SUPABASE_URL</code> e <code className="mx-1">VITE_SUPABASE_PUBLISHABLE_KEY</code> e applicare le migrazioni in <code>supabase/migrations</code>.
           </p>
         </Section>
       </div>

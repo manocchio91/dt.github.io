@@ -53,11 +53,14 @@ jobs:
         if: steps.pages.outputs.enabled == 'true'
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
-          # solo valori pubblici (URL e anon key); vuoti = modalità locale nel browser
+          # solo valori pubblici (URL e publishable key, protetta da RLS); vuoti = modalità locale nel browser
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_FORECAST_URL: ${{ vars.VITE_FORECAST_URL }}
         run: npm run build -w @mdt/web
+      - name: Nessuna chiave segreta nel bundle
+        if: steps.pages.outputs.enabled == 'true'
+        run: node scripts/check-bundle-secrets.mjs apps/web/dist
       - uses: actions/configure-pages@v5
         if: steps.pages.outputs.enabled == 'true'
       - uses: actions/upload-pages-artifact@v3

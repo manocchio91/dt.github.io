@@ -2,6 +2,8 @@
 
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string;
+  /** chiave pubblica (sb_publishable_…); ha la precedenza sulla vecchia anon key */
+  readonly VITE_SUPABASE_PUBLISHABLE_KEY?: string;
   readonly VITE_SUPABASE_ANON_KEY?: string;
   /** proxy autenticato verso services/forecasting (Timestral); assente = motore non configurato */
   readonly VITE_FORECAST_URL?: string;
