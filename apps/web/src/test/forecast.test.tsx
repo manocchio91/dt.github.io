@@ -147,3 +147,37 @@ describe('F31 — Previsioni nel caso vigneto', () => {
     expect(screen.getByText(/una cella di rianalisi\): le zone cambiano solo per la soglia/)).toBeTruthy();
   });
 });
+
+describe('Previsioni — modalità guidata (Audit Anno Luce)', () => {
+  it('in primo piano: cosa, quando, valore centrale, fascia, probabilità, fonte, verifica; niente quantili, WQL, MASE, hash', async () => {
+    open(urban);
+    const s = within(await screen.findByTestId('forecast-summary', {}, { timeout: 10_000 }));
+    for (const t of ['Che cosa potrebbe accadere', 'Quando', 'Valore centrale stimato', 'Fascia di possibile variazione', 'Probabilità di superare la soglia', 'Fonte della previsione']) expect(s.getByText(t)).toBeTruthy();
+    expect(s.getByText(/8 casi su 10/)).toBeTruthy();
+    expect(s.getByText(/Verifica consigliata:/)).toBeTruthy();
+    expect(screen.getByTestId('forecast-summary').textContent).not.toMatch(/q0,|quantil|WQL|MASE|MAE|Timestral|hash/i);
+    const tech = screen.getByTestId('forecast-technical') as HTMLDetailsElement;
+    expect(tech.open).toBe(false);
+    // tutto resta disponibile nell'approfondimento tecnico
+    for (const t of ['WQL', 'Impronta dell’input', 'Intervallo mostrato']) expect(within(tech).getAllByText(t).length).toBeGreaterThan(0);
+  });
+
+  it('modello: due scelte in parole semplici; Timestral non risulta mai attivo senza servizio', async () => {
+    vi.stubEnv('VITE_FORECAST_URL', '');
+    open(urban);
+    await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
+    const options = [...(screen.getByLabelText('Modello') as HTMLSelectElement).options].map((o) => o.textContent);
+    expect(options).toEqual(['Previsione di base', 'Modello avanzato (Beta)']);
+    fireEvent.change(screen.getByLabelText('Modello'), { target: { value: 'mistralai/Timestral-5M' } });
+    expect(await screen.findByText('Il modello avanzato non è ancora disponibile.')).toBeTruthy();
+    expect(screen.queryByTestId('forecast-summary')).toBeNull();
+    expect(screen.getByText(/Beta da validare — Motore Timestral non configurato/)).toBeTruthy(); // solo nei dettagli tecnici
+  });
+
+  it('agricolo: verifica consigliata in campo o con l’agronomo, mai un intervento automatico', async () => {
+    open(agri);
+    const s = await screen.findByTestId('forecast-summary', {}, { timeout: 10_000 });
+    expect(s.textContent).toMatch(/campo|agronomo|zone da controllare/);
+    expect(s.textContent).not.toMatch(/irriga|tratta|automatic/i);
+  });
+});

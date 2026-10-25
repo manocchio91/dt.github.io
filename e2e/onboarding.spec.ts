@@ -103,7 +103,10 @@ test('agricolo solo da tastiera fino alla zona da controllare', async ({ page })
   await proceed();
   await expect(page.getByRole('radio', { name: /Campagna/ })).toBeChecked();
   await proceed();
-  await choose(/quale zona controllare/);
+  // si entra nel gruppo dalla prima voce e ci si sposta con le frecce
+  await choose(/Controllare lo stress/);
+  for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('radio', { name: /Programmare un sopralluogo/ })).toBeChecked();
   await proceed();
   await choose(/Vigneto dimostrativo/);
   await proceed();

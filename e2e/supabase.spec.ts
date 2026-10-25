@@ -92,7 +92,7 @@ test('le preferenze dell’account persistono tra sessioni', async ({ page }) =>
   // nuova pagina: nessuna copia locale, le preferenze tornano dal server
   expect(await page.evaluate(() => localStorage.getItem('mdt:onboarding:v1'))).toBeNull();
   await page.goto(REMOTE + '/');
-  await expect(page.getByText(/Agronomo o consulente · Osservare una parcella in campo/)).toBeVisible();
+  await expect(page.getByText(/Agronomo o consulente · Osservare una parcella/)).toBeVisible();
 });
 
 test('il server rifiuta comunque le scritture di chi ha solo la lettura (RLS come protezione principale)', async ({ page }) => {
