@@ -48,3 +48,13 @@ Riepilogo (dopo M1, B-102 e B-120): Operativa 9 · Beta 10 · Dimostrativa 4 · 
 Tracciabilità: F04 (meteo: fonte e timestamp delle serie), F05 (QA: mancanti e flag), F12 (incertezza: quantili e copertura), F15 (confronto: baseline), F17/F18 (decisione umana motivata, soglie dell’esperto), F21 (lineage), F30 (ex-post: osservazione successiva).
 
 Aggiornamento F31 (24/10/2026): predisposto l’input di Timestral dallo storico registrato su Supabase con la previsione Open-Meteo come covariata nota (`weatherSource.ts`, `weatherSource.test.ts`). Il significato di F31 e il suo stato (Beta, Timestral non eseguito) non cambiano.
+
+## Semplificazione dell’interfaccia (aggiornamento del 25/10/2026)
+
+Le funzioni F01, F04, F05, F15, F21, F29 e F31 hanno ora una presentazione a due livelli: sintesi
+nella modalità guidata, dettagli completi in sezioni espandibili (aperte nella modalità tecnica).
+Nessun requisito è stato rimosso; la matrice modifica → requisito → bisogno → informazione
+essenziale → dettaglio nascosto → comportamento offline → test è in
+`18-semplificazione-ux-audit.md` (sezione 7). Test aggiunti: `usabilityOnboarding.test.tsx`,
+`onboardingPaths.test.ts`, `weatherSummary.test.ts`, nuovi blocchi in `weatherPanel.test.tsx` e
+`forecast.test.tsx`, `e2e/usability.spec.ts`, `e2e/usability-mobile.spec.ts`.

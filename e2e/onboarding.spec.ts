@@ -21,7 +21,7 @@ test('urbano guidato: onboarding < 2 min e primo scenario calcolato < 5 min', as
   await answer(page, /Tecnico comunale/);
   await expect(page.getByRole('radio', { name: /Città/ })).toBeChecked();
   await answer(page, null);
-  await answer(page, /Ridurre il calore/);
+  await answer(page, /Controllare una piazza/);
   await answer(page, /Area dimostrativa/);
   await answer(page, /Confini dell’area/, 'checkbox');
   await answer(page, /Guidata/);
@@ -45,8 +45,8 @@ test('primo scenario da zero, solo con indicazioni a schermo (nuovo progetto)', 
   await page.goto(LOCAL + '/benvenuto');
   await answer(page, /Gestore del verde/);
   await answer(page, null);
-  await answer(page, /Scegliere tra due/);
-  await page.getByRole('radio', { name: /Un mio nuovo progetto/ }).check();
+  await answer(page, /Confrontare possibili interventi/);
+  await page.getByRole('radio', { name: /Una mia nuova area/ }).check();
   await page.getByLabel('Nome del progetto').fill('Piazza del mercato');
   await answer(page, null);
   await answer(page, null);
@@ -93,7 +93,7 @@ test('agricolo solo da tastiera fino alla zona da controllare', async ({ page })
     await page.keyboard.press('Space');
   };
   const proceed = async () => {
-    await tabTo(/Avanti|Inizia/);
+    await tabTo(/^Continua$/);
     await page.keyboard.press('Enter');
   };
   await choose(/Tecnico comunale/);
@@ -103,7 +103,10 @@ test('agricolo solo da tastiera fino alla zona da controllare', async ({ page })
   await proceed();
   await expect(page.getByRole('radio', { name: /Campagna/ })).toBeChecked();
   await proceed();
-  await choose(/quale zona controllare/);
+  // si entra nel gruppo dalla prima voce e ci si sposta con le frecce
+  await choose(/Controllare lo stress/);
+  for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('radio', { name: /Programmare un sopralluogo/ })).toBeChecked();
   await proceed();
   await choose(/Vigneto dimostrativo/);
   await proceed();
@@ -131,7 +134,7 @@ test('preferenze salvate nel browser, riaperte e modificate', async ({ page }) =
   await page.goto(LOCAL + '/benvenuto');
   await answer(page, /Agronomo/);
   await answer(page, null);
-  await answer(page, /Capire se serve acqua/);
+  await answer(page, /Controllare lo stress/);
   await answer(page, /Vigneto dimostrativo/);
   await answer(page, /Sonda di umidità/, 'checkbox');
   await answer(page, /Guidata/);
@@ -140,12 +143,12 @@ test('preferenze salvate nel browser, riaperte e modificate', async ({ page }) =
   await page.reload();
   await page.goto(LOCAL + '/');
   await expect(page.getByRole('link', { name: 'Le mie preferenze' }).first()).toBeVisible();
-  await expect(page.getByText(/Agronomo o consulente · Capire se serve acqua/)).toBeVisible();
+  await expect(page.getByText(/Agronomo o consulente · Controllare lo stress da caldo o da siccità/)).toBeVisible();
 
   await page.getByRole('link', { name: 'Le mie preferenze' }).first().click();
   await expect(page.getByText(/Modifica preferenze/)).toBeVisible();
   await expect(page.getByRole('radio', { name: /Agronomo/ })).toBeChecked();
-  for (let i = 0; i < 5; i++) await page.getByRole('button', { name: /Avanti/ }).click();
+  for (let i = 0; i < 5; i++) await page.getByRole('button', { name: /^Continua$/ }).click();
   await answer(page, /Tecnica/);
   await expect(page).toHaveURL(/\/agricolo$/);
   await expect(page.getByRole('complementary', { name: 'Guida' })).toHaveCount(0);

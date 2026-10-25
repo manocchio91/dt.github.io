@@ -78,7 +78,7 @@ export function LandingPage() {
             Definisci un’area, leggi la baseline, costruisci gli scenari A e B (alberi, ombra, depaving, albedo…) e confronta riduzione termica stimata, costi, acqua e manutenzione.
           </p>
           <p className="mt-2 text-xs text-sand-600">Demo: Campobasso, Piazza Vittorio Emanuele II (dati SIMULATI)</p>
-          <button type="button" className="btn-primary mt-4" disabled={!ready || busy !== null} onClick={() => go('urban')}>
+          <button type="button" className="btn-secondary mt-4" disabled={!ready || busy !== null} onClick={() => go('urban')}>
             {busy === 'urban' ? 'Apertura…' : 'Apri la demo urbana'}
           </button>
         </article>
@@ -89,7 +89,7 @@ export function LandingPage() {
             Verifica parcelle e fase fenologica, guarda separatamente stress termico, idrico e segnali in campo, scopri quale zona controllare per prima e perché.
           </p>
           <p className="mt-2 text-xs text-sand-600">Demo: vigneto molisano, cultivar Tintilia (dati SIMULATI)</p>
-          <button type="button" className="btn-primary mt-4 bg-leaf-800 hover:bg-leaf-600" disabled={!ready || busy !== null} onClick={() => go('agriculture')}>
+          <button type="button" className="btn-secondary mt-4" disabled={!ready || busy !== null} onClick={() => go('agriculture')}>
             {busy === 'agriculture' ? 'Apertura…' : 'Apri la demo agricola'}
           </button>
         </article>
@@ -121,22 +121,16 @@ export function LandingPage() {
           <li>
             <strong>Modalità Pilota calibrato</strong>: <StatusBadge status="non_disponibile" /> — richiede area reale, dati locali controllati, modello documentato e validazione professionale.
           </li>
-          <li>I progetti sono salvati solo in questo browser. Accesso autenticato e progetti condivisi: <StatusBadge status="roadmap" /></li>
+          <li>Senza accesso i progetti restano in questo browser. L’archivio condiviso di un’organizzazione si attiva con l’accesso (non ancora collegato in questo sito pubblico).</li>
           <li>
             Casi studio (Bilbao, Siviglia, Parigi, Padova, Bologna, Campobasso…): <StatusBadge status="roadmap" /> — non verranno mai usati come output locale.
           </li>
         </ul>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Link to="/progetti" className="btn-secondary">
-            Progetti salvati
-          </Link>
-          <Link to="/limiti" className="btn-ghost">
+        <p className="mt-3 text-sm">
+          <Link to="/limiti" className="font-semibold text-petrol-700 underline">
             Limiti e responsabilità
           </Link>
-          <Link to="/stato" className="btn-ghost">
-            Stato delle funzioni
-          </Link>
-        </div>
+        </p>
       </section>
     </div>
   );

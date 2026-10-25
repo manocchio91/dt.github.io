@@ -101,7 +101,7 @@ Le profondità del suolo non disponibili per una cella generano un avviso, non u
 - Dato **territoriale modellato**: la cella del modello (es. 41,586 / 14,661, quota 700 m per Campobasso) non coincide con il punto richiesto e non rappresenta una piazza o un filare.
 - `best_match` sceglie il modello per area e orizzonte: **Open-Meteo non dichiara nella risposta quale modello ha usato**, quindi `model_returned` resta vuoto e l'interfaccia lo dice.
 - Open-Meteo non restituisce l'ora del run del modello: `issued_at` è l'ora (UTC, arrotondata) di acquisizione.
-- In pagina: “Dato territoriale modellato, non rilevato da sensore locale”; etichetta **DATO OPEN-METEO**, distinta da **DATO DA SENSORE**, **STIMATO DA MODELLO** e **SIMULATO**.
+- In pagina: “Dato territoriale modellato, non rilevato da sensore locale”; etichetta **DATO OPEN-METEO**, distinta da **MISURATO DA SENSORE**, **STIMATO DA MODELLO** e **SIMULATO**.
 
 ## 7. Attribuzione
 
@@ -126,7 +126,7 @@ o volumi elevati serve un piano Open-Meteo dedicato.
 - nessun valore futuro del target nell'input.
 
 Timestral resta **non attivo** finché il servizio reale non viene eseguito: l'adapter risponde
-“Motore Timestral non configurato”. I dati Open-Meteo non vengono mai presentati come previsione
+“Motore Timestral non configurato” (nella modalità guidata: “Il modello avanzato non è ancora disponibile. Puoi consultare la previsione di base.”). I dati Open-Meteo non vengono mai presentati come previsione
 Timestral, né il contrario.
 
 ## 10. Test su Supabase reale (da eseguire con credenziali di staging)

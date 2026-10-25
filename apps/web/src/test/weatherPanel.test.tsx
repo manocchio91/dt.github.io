@@ -98,7 +98,8 @@ describe('Pannello “Dati meteorologici”', () => {
   it('senza archivio Supabase: nessuna acquisizione dal browser, stato dichiarato', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     renderApp(<WeatherPanel bundle={urban} />, { repo: localRepo([urban]) });
-    expect(await screen.findByText('Archivio meteo non collegato')).toBeTruthy();
+    expect(await screen.findByText('Dati meteo non ancora collegati.')).toBeTruthy();
+    expect(screen.getByText('Puoi continuare usando la modalità dimostrativa.')).toBeTruthy();
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
@@ -110,7 +111,7 @@ describe('Pannello “Dati meteorologici”', () => {
     expect(meta.getByText(/best_match \(modello effettivo non dichiarato dalla risposta\)/)).toBeTruthy();
     expect(meta.getByText(/41,5861|41\.5861/)).toBeTruthy();
     expect(screen.getByText(MODELLED_NOTICE)).toBeTruthy();
-    expect(MODELLED_NOTICE).toBe('Dato territoriale modellato, non rilevato da sensore locale');
+    expect(MODELLED_NOTICE).toBe('Dato territoriale modellato, non rilevato da sensore locale.');
     const now = within(screen.getByTestId('weather-now'));
     for (const l of ['Temperatura aria (2 m)', 'Temperatura percepita', 'Umidità relativa', 'Precipitazioni', 'Vento (10 m)', 'Radiazione solare']) expect(now.getByText(l)).toBeTruthy();
     expect(now.queryByText('ET0 (FAO)')).toBeNull();
@@ -124,7 +125,7 @@ describe('Pannello “Dati meteorologici”', () => {
     await screen.findByTestId('weather-meta');
     const panel = screen.getByTestId('weather-panel');
     expect(panel.querySelector('[data-source=OPEN_METEO]')!.textContent).toMatch(/DATO OPEN-METEO/);
-    expect(within(screen.getByTestId('weather-sensors')).getByText(/DATO DA SENSORE/)).toBeTruthy();
+    expect(within(screen.getByTestId('weather-sensors')).getByText(/MISURATO DA SENSORE/)).toBeTruthy();
     const kinds = [...panel.querySelectorAll('[data-source]')].map((e) => e.getAttribute('data-source'));
     expect(new Set(kinds)).toEqual(new Set(['OPEN_METEO', 'SENSORE', 'STIMATO_DA_MODELLO', 'SIMULATO']));
     expect(panel.textContent).not.toMatch(/Timestral/);
@@ -160,7 +161,8 @@ describe('Pannello “Dati meteorologici”', () => {
     open(urban);
     expect(await screen.findByText('Dato non aggiornato')).toBeTruthy();
     expect(screen.getByText('Ultimo tentativo non riuscito')).toBeTruthy();
-    expect(screen.getByText(/TIMEOUT\. Mostrati gli ultimi dati validi/)).toBeTruthy();
+    expect(screen.getByText(/aggiornamento non riuscito\. Mostrati gli ultimi dati validi/)).toBeTruthy();
+    expect(screen.queryByText(/TIMEOUT/)).toBeNull(); // il codice tecnico resta alla modalità tecnica
     expect(screen.getByTestId('weather-hourly')).toBeTruthy();
   });
 
@@ -218,5 +220,59 @@ describe('Pannello “Dati meteorologici”', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Crea punto di acquisizione nel baricentro dell’area' }));
     await waitFor(() => expect(f.calls.inserts).toHaveLength(1));
     expect((f.calls.inserts[0] as { row: Record<string, unknown> }).row).toMatchObject({ project_id: urban.project.id, scope: 'urban', organization_id: ORG_A });
+  });
+});
+
+describe('Pannello meteo — modalità guidata e tecnica (Audit Anno Luce)', () => {
+  // per l'utente autenticato le preferenze arrivano dalla propria riga di user_preferences
+  const setMode = (mode: 'guidata' | 'tecnica') => {
+    const preferences = { version: 1, completedAt: NOW.toISOString(), profile: 'tecnico_comunale', sector: 'urban', decision: 'ridurre_calore', area: { kind: 'demo' }, data: [], mode };
+    (tables as unknown as Record<string, unknown[]>).user_preferences = [{ user_id: fakeSession().user.id, preferences }];
+  };
+
+  it('guidata: sintesi con stato, valore, soglia, aggiornamento, fonte e prossimo passo; dettagli chiusi', async () => {
+    setMode('guidata');
+    open(urban);
+    const summary = within(await screen.findByTestId('weather-summary'));
+    expect(summary.getByTestId('weather-level').textContent).toMatch(/Stato: (Regolare|Attenzione|Critico)/);
+    expect(summary.getByText(/Temperatura aria \(2 m\) ora/)).toBeTruthy();
+    expect(summary.getByText(/sopra 32 °C — dimostrativa, da confermare \(tecnico comunale\)/)).toBeTruthy();
+    expect(summary.getByText('Ultimo aggiornamento')).toBeTruthy();
+    expect(summary.getByText('Open-Meteo, previsione da modello meteorologico')).toBeTruthy();
+    expect(summary.getByText(/Prossimo passo:/)).toBeTruthy();
+    expect(screen.getByText(MODELLED_NOTICE)).toBeTruthy();
+    expect((screen.getByTestId('weather-source-details') as HTMLDetailsElement).open).toBe(false);
+    expect((screen.getByTestId('weather-values-details') as HTMLDetailsElement).open).toBe(false);
+    // la sintesi non mostra coordinate della cella né nomi di modello
+    expect(screen.getByTestId('weather-summary').textContent).not.toMatch(/41[.,]58|best_match/);
+  });
+
+  it('“Dettagli della fonte” si apre su richiesta: Open-Meteo, modello, cella, quota, variabili, unità, limiti, licenza', async () => {
+    setMode('guidata');
+    open(urban);
+    const details = (await screen.findByTestId('weather-source-details')) as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    fireEvent.click(within(details).getByText('Dettagli della fonte'));
+    await waitFor(() => expect(details.open).toBe(true));
+    const meta = within(screen.getByTestId('weather-meta'));
+    for (const t of ['Fonte', 'Modello', 'Cella del modello', 'Intervallo temporale', 'Variabili e unità', 'Limiti spaziali', 'Licenza e attribuzione']) expect(meta.getByText(t)).toBeTruthy();
+    expect(meta.getByText(/quota 700 m/)).toBeTruthy();
+    expect(meta.getByText(/CC BY 4\.0/)).toBeTruthy();
+  });
+
+  it('tecnica: dettagli della fonte e valori orari già aperti', async () => {
+    setMode('tecnica');
+    open(urban);
+    await waitFor(() => expect((screen.getByTestId('weather-source-details') as HTMLDetailsElement).open).toBe(true));
+    expect((screen.getByTestId('weather-values-details') as HTMLDetailsElement).open).toBe(true);
+  });
+
+  it('agricolo: sintesi sull’umidità stimata del suolo con soglia dell’agronomo, senza prescrizioni', async () => {
+    setMode('guidata');
+    open(agri);
+    const summary = await screen.findByTestId('weather-summary');
+    expect(summary.textContent).toMatch(/Umidità suolo 9–27 cm ora|Temperatura aria \(2 m\) ora/);
+    expect(summary.textContent).toMatch(/\(agronomo\)/);
+    expect(summary.textContent).not.toMatch(/irriga|tratta/i);
   });
 });

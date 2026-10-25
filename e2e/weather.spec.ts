@@ -38,6 +38,12 @@ test('lettura: dati Open-Meteo con fonte, cella, timestamp e avviso; nessun aggi
   await expect(panel.locator('[data-source=OPEN_METEO]').first()).toContainText('DATO OPEN-METEO');
   await expect(page.getByTestId('weather-meta')).toContainText('Open-Meteo Forecast API');
   await expect(page.getByTestId('weather-meta')).toContainText('best_match (modello effettivo non dichiarato dalla risposta)');
+  // in modalità guidata: sintesi in primo piano, dettagli chiusi e apribili
+  await expect(page.getByTestId('weather-summary')).toBeVisible();
+  await expect(page.getByTestId('weather-meta')).toBeHidden();
+  await page.getByText('Dettagli della fonte').click();
+  await expect(page.getByTestId('weather-meta')).toBeVisible();
+  await page.getByText('Tutti i valori ora per ora').click();
   await expect(page.getByTestId('weather-hourly').getByRole('row')).toHaveCount(25);
   await expect(panel.getByRole('button', { name: 'Aggiorna dati' })).toHaveCount(0);
   await expect(panel).not.toContainText('Timestral');
@@ -46,6 +52,9 @@ test('lettura: dati Open-Meteo con fonte, cella, timestamp e avviso; nessun aggi
 
 test('tastiera: orizzonte 24/72 con Tab e Invio, tabella scorrevole raggiungibile', async ({ page }) => {
   await loginAndOpen(page, /Comune A.*lettura/);
+  // in modalità guidata i valori ora per ora si aprono su richiesta, anche da tastiera
+  await page.getByText('Tutti i valori ora per ora').focus();
+  await page.keyboard.press('Enter');
   await page.getByRole('button', { name: '24 ore' }).focus();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: '72 ore' })).toBeFocused();
@@ -73,6 +82,7 @@ test('senza rete: ultimi dati mostrati e dichiarati, aggiornamento disabilitato'
   for (const d of Object.values(state.docs)) d.org = ORG_B;
   state.weather.locations[0]!.organization_id = ORG_B;
   await loginAndOpen(page, /Comune B.*modifica/);
+  await page.getByText('Tutti i valori ora per ora').click();
   await expect(page.getByTestId('weather-hourly')).toBeVisible();
   await context.setOffline(true);
   await expect(page.getByText('Nessuna connessione')).toBeVisible();
@@ -85,6 +95,6 @@ test('ospite (GitHub Pages senza Supabase): archivio meteo non collegato, nessun
   await page.goto(LOCAL + '/');
   await page.getByRole('button', { name: 'Apri la demo agricola' }).click();
   await expect(page).toHaveURL(/\/agricolo$/);
-  await expect(page.getByText('Archivio meteo non collegato')).toBeVisible();
+  await expect(page.getByText('Dati meteo non ancora collegati.')).toBeVisible();
   await expect(page.getByTestId('weather-panel').locator('[data-source]')).toHaveCount(4);
 });

@@ -6,6 +6,7 @@ import { Alert, Field } from '../components/ui';
 import { formatArea } from '@mdt/domain';
 import { SharePanel } from '../components/SharePanel';
 import { CanEdit, usePermissions } from '../state/permissions';
+import { PathGuide } from '../components/guide';
 
 export function ProjectsPage() {
   const { projects, save, remove, openDemo, ready, kind } = useStore();
@@ -36,8 +37,9 @@ export function ProjectsPage() {
       <p className="text-sm text-sand-600">
         {kind === 'supabase'
           ? 'Progetti dell’organizzazione selezionata, salvati nel database condiviso con versioni e permessi per ruolo.'
-          : 'I progetti sono salvati in questo browser (IndexedDB). Per conservarli o condividerli accedi a un’organizzazione o usa “Esporta”.'}
+          : 'I progetti sono salvati in questo browser. Per conservarli o condividerli accedi a un’organizzazione o usa “Esporta”.'}
       </p>
+      <PathGuide where={{ step: 1, what: 'i progetti salvati e le due demo con valori SIMULATI.', why: 'ogni analisi, decisione e verifica resta legata a un progetto, con il suo storico.' }} />
 
       <CanEdit fallback={<p className="text-sm text-sand-600">Hai il ruolo “lettura”: puoi aprire ed esportare i progetti dell’organizzazione, non crearli o modificarli.</p>}>
       <div className="flex flex-wrap gap-2">

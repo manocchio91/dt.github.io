@@ -182,9 +182,10 @@ export default function AgriLabPage() {
         </Link>
       </div>
       {bundle.project.mode === 'demo' && <DemoRibbon />}
-      <WeatherPanel bundle={bundle} />
       <GuideBanner
         readOnlyHint="Sola lettura: consulta la zona da controllare, le componenti e il confronto tra misure."
+        whenDone={{ label: 'verifica come ha risposto il vigneto', to: '#a9' }}
+        where={{ step: [3, 7], what: 'le zone della parcella, la fase della vite, i dati disponibili e la zona da controllare per prima.', why: 'il segnale va verificato in campo e la scelta resta tua e dell’agronomo: qui la registri e poi ne verifichi l’esito.' }}
         steps={[
           { done: agri.zones.length > 0, label: 'definisci le sottozone della parcella', anchor: 'a1' },
           { done: agri.zones.every((z) => z.fieldCapacity !== null && z.wiltingPoint !== null), label: 'completa i dati del suolo per ogni zona', anchor: 'a2' },
@@ -193,6 +194,7 @@ export default function AgriLabPage() {
           { done: bundle.decisions.some((d) => d.sector === 'agriculture'), label: 'confronta le misure e registra la decisione', anchor: 'a7' },
         ]}
       />
+      <WeatherPanel bundle={bundle} />
 
       {first && (
         <section className="card border-l-8 border-l-alert-800" aria-labelledby="first-zone">

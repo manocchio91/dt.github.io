@@ -89,6 +89,16 @@ P0 = Milestone 0 (integrità) · P1 = Milestone 1 (MVP pilota) · P2 = Milestone
 | B-152 | Mostrare “Utente eliminato” dove l’interfaccia indicherà proprietario o autore di una risorsa | F21 |
 | B-153 | Pseudonimizzare gli identificativi di utenti eliminati presenti nei dettagli di `audit_logs` (es. appartenenze) | F21 |
 
+### Semplificazione dell’interfaccia (Audit Anno Luce, `docs/18`)
+
+| ID | Elemento | F |
+|---|---|---|
+| B-154 | Decision Lab urbano: ridurre a una sola azione primaria per schermata (oggi “Confronta e decidi”, “Posiziona” e “Calcola” hanno lo stesso peso) | F01, F29 |
+| B-155 | Estendere l’indicazione “Passo n di 7” a Foto e documenti e, dove utile, alle pagine informative | F01 |
+| B-156 | Soglie del pannello meteo per progetto, fissate dall’esperto (oggi dimostrative: 32 °C urbano, 0,16 m³/m³ suolo) | F04, F09, F13 |
+| B-157 | Annunci del grafico delle previsioni in parole semplici per gli screen reader nella modalità guidata (oggi “mediana”, quantili) | F29, F31 |
+| B-158 | Validazione con utenti reali (tecnico comunale, viticoltore, agronomo) del percorso guidato e del tempo al primo scenario | F01 |
+
 ## P2 — Milestone 2
 
 | ID | Elemento | F |

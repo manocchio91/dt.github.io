@@ -21,11 +21,13 @@ Garanzie che il profilo non aumenti i permessi:
 ## Le sei domande
 
 1. **Chi sei?** — cinque profili; nota esplicita “il profilo non cambia i permessi” e, se si è in un’organizzazione, il ruolo attuale.
-2. **Dove vuoi lavorare?** — Città o Campagna; preselezionato in base al profilo (il revisore sceglie).
-3. **Quale decisione devi affrontare?** — elenco diverso per ambito.
-4. **Quale area o progetto?** — area dimostrativa; nuovo progetto (solo con ruolo modifica); progetto esistente dello stesso ambito.
-5. **Quali dati hai già?** — elenco diverso per ambito, con spiegazione semplice di cosa cambia senza quei dati.
-6. **Come preferisci lavorare?** — guidata (un passo alla volta, dettagli chiusi) o tecnica (dettagli aperti).
+2. **In quale ambito lavori?** — Città o Campagna; preselezionato in base al profilo (il revisore sceglie).
+3. **Quale decisione devi prendere?** — elenco diverso per ambito (5 voci urbane, 6 agricole; nessuna voce prescrive irrigazioni, trattamenti o interventi automatici).
+4. **Su quale area, parcella o progetto lavori?** — area dimostrativa; nuova area o parcella (solo con ruolo modifica); progetto esistente dello stesso ambito.
+5. **Quali dati possiedi già?** — elenco diverso per ambito, con spiegazione semplice di cosa cambia senza quei dati.
+6. **Preferisci la modalità guidata o tecnica?** — guidata (un passo alla volta, dettagli chiusi) o tecnica (dettagli aperti).
+
+Una domanda per schermata, “Domanda n di 6”, “Continua” come unica azione primaria e “Indietro” secondaria. Le risposte sono salvate come bozza a ogni passo (`mdt:onboarding:bozza`, solo campi della guida): “Esci e riprendi dopo” riprende dalla stessa domanda. Dettagli e verifica in `18-semplificazione-ux-audit.md`.
 
 Cambiare ambito azzera decisione, dati e progetto scelti: nessuna voce urbana può restare in un percorso agricolo e viceversa (liste disgiunte, verificate da test).
 

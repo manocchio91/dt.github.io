@@ -25,6 +25,9 @@ import {
 import { Alert, Section, StatusBadge } from '../components/ui';
 import { formatNumber } from '../components/DataBadge';
 import { ForecastChart } from '../components/ForecastChart';
+import { SourceBadge } from '../components/SourceBadge';
+import { useWorkMode } from '../state/preferences';
+import { PathGuide } from '../components/guide';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { usePermissions } from '../state/permissions';
 import { useAuth } from '../state/auth';
@@ -33,6 +36,16 @@ import { fmtDay, fmtHour, forecastServiceUrl, makeAdapter, MODEL_CHOICES, VARIAB
 const CONTEXT_DAYS = 28;
 const MIN_DAYS = 14;
 const HISTORY_SHOWN = 72;
+
+/** Nella modalità guidata: due scelte con parole semplici; nomi e versioni dei modelli restano nei dettagli tecnici. */
+const GUIDED_MODEL_LABEL: Partial<Record<ModelChoice, string>> = {
+  'baseline-persistenza-stagionale': 'Previsione di base',
+  'mistralai/Timestral-5M': 'Modello avanzato (Beta)',
+};
+
+export const ADVANCED_UNAVAILABLE = { title: 'Il modello avanzato non è ancora disponibile.', text: 'Puoi consultare la previsione di base.' };
+
+const BAND_PLAIN: Record<ForecastBand, string> = { '80': '8 casi su 10', '90': '9 casi su 10', '98': '98 casi su 100' };
 
 type RunState = { status: 'idle' | 'loading' } | { status: 'ok'; result: ForecastResult } | { status: 'unavailable'; message: string } | { status: 'error'; message: string };
 
@@ -44,6 +57,7 @@ export default function ForecastPage() {
 
 function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: ReturnType<typeof useProject>['update'] }) {
   const { canEdit } = usePermissions();
+  const technical = useWorkMode() === 'tecnica';
   const { session } = useAuth();
   const urban = bundle.project.sector !== 'agriculture';
   const context = urban ? 'urbano' : 'agricolo';
@@ -139,6 +153,12 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
     return pairs.length ? pairs.reduce((s, [m, o]) => s + Math.abs((o as number) - m), 0) / pairs.length : null;
   };
 
+  const guidedModels = MODEL_CHOICES.filter((m) => GUIDED_MODEL_LABEL[m.id]);
+  const modelOptions = technical ? MODEL_CHOICES.map((m) => ({ id: m.id, label: m.label })) : guidedModels.map((m) => ({ id: m.id, label: GUIDED_MODEL_LABEL[m.id]! }));
+  if (!modelOptions.some((m) => m.id === model)) modelOptions.push({ id: model, label: MODEL_CHOICES.find((m) => m.id === model)!.label });
+  const modelPlain = isTimestral ? 'modello avanzato (Beta)' : 'previsione di base';
+  const peak = chartForecast ? peakIndex(chartForecast.median, threshold.direction) : -1;
+
   return (
     <div className="space-y-4">
       <header className="space-y-2">
@@ -147,15 +167,65 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
           <StatusBadge status="beta" />
         </div>
         <p className="text-sm">
-          Previsione probabilistica oraria {urban ? 'nell’area urbana' : 'per il vigneto'}: una <strong>stima da modello</strong>, non una misura. Ogni ora ha una mediana e un intervallo; la decisione resta umana.
+          Che cosa potrebbe accadere nelle prossime ore {urban ? 'nell’area urbana' : 'nel vigneto'}, con una fascia di possibile variazione. È una <strong>stima da modello</strong>, non una misura: la decisione resta umana.
         </p>
         <Alert tone="warn" title={urban ? 'Che cosa non dice questa previsione' : 'Avvertenza obbligatoria'}>
           <p>{urban ? FORECAST_TEXT.urban : FORECAST_TEXT.agri}</p>
         </Alert>
       </header>
+      <PathGuide
+        where={{
+          step: 4,
+          what: urban ? 'quanto potrebbe salire la temperatura nelle prossime ore e con quale probabilità supera la soglia.' : 'come potrebbero cambiare umidità del suolo e temperatura e con quale probabilità superano la soglia dell’agronomo.',
+          why: 'sapere in anticipo quando potrebbe esserci una criticità aiuta a verificarla in tempo.',
+          next: urban ? { label: 'confronta gli scenari e registra la decisione', to: `/progetti/${bundle.project.id}/confronto` } : { label: 'torna alle zone da controllare nel Decision Lab', to: `/progetti/${bundle.project.id}/agricolo` },
+        }}
+      />
 
-      <Section id="impostazioni" title="Impostazioni">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {result && finding && chartForecast && peak >= 0 && (
+        <section aria-labelledby="sintesi-h" className="card space-y-2" data-testid="forecast-summary">
+          <h2 id="sintesi-h" className="h-section">
+            In sintesi
+          </h2>
+          <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[14rem_1fr]">
+            <dt className="font-semibold text-sand-600">Che cosa potrebbe accadere</dt>
+            <dd>
+              {finding.flagged
+                ? `Possibile superamento della soglia: ${VARIABLE_LABEL[variable]?.toLowerCase() ?? variable} ${threshold.direction} ${formatNumber(threshold.value, series.unit)}.`
+                : `Nessun superamento della soglia (${threshold.direction} ${formatNumber(threshold.value, series.unit)}) atteso con la probabilità indicata.`}
+            </dd>
+            <dt className="font-semibold text-sand-600">Quando</dt>
+            <dd>{finding.flagged ? `dalle ${fmtHour(finding.firstAt!)}` : `valore più ${threshold.direction === 'sopra' ? 'alto' : 'basso'} atteso ${fmtHour(chartForecast.timestamps[peak]!)}`}</dd>
+            <dt className="font-semibold text-sand-600">Valore centrale stimato</dt>
+            <dd className="tabular-nums">
+              {formatNumber(chartForecast.median[peak]!, series.unit)} ({fmtHour(chartForecast.timestamps[peak]!)})
+            </dd>
+            <dt className="font-semibold text-sand-600">Fascia di possibile variazione</dt>
+            <dd className="tabular-nums">
+              {rangeText(chartForecast.lower[peak]!, chartForecast.upper[peak]!, series.unit)} ({BAND_PLAIN[band]})
+            </dd>
+            <dt className="font-semibold text-sand-600">Probabilità di superare la soglia</dt>
+            <dd className="tabular-nums">{Math.round(finding.maxProbability * 100)}% al massimo</dd>
+            <dt className="font-semibold text-sand-600">Fonte della previsione</dt>
+            <dd>
+              {isTimestral ? 'Modello avanzato (Beta)' : 'Previsione di base'} calcolata sui dati storici Open-Meteo dell’area
+            </dd>
+          </dl>
+          <p className="rounded bg-petrol-100 p-2 text-sm text-petrol-900">
+            <strong>Verifica consigliata:</strong>{' '}
+            {finding.flagged
+              ? urban
+                ? 'controlla sul posto le aree più frequentate prima di decidere.'
+                : 'controlla in campo le zone segnalate o consulta l’agronomo prima di intervenire.'
+              : urban
+                ? 'nessuna urgenza, puoi proseguire con gli scenari del Decision Lab.'
+                : 'nessuna urgenza, prosegui con le zone da controllare nel Decision Lab.'}
+          </p>
+        </section>
+      )}
+
+      <Section id="impostazioni" title="Che cosa vuoi prevedere">
+        <div className="grid gap-3 sm:grid-cols-3">
           <label className="block text-sm font-semibold">
             Grandezza
             <select className="input mt-1" value={variable} onChange={(e) => setVariable(e.target.value)}>
@@ -179,66 +249,45 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
           <label className="block text-sm font-semibold">
             Modello
             <select className="input mt-1" value={model} onChange={(e) => setModel(e.target.value as ModelChoice)}>
-              {MODEL_CHOICES.map((m) => (
+              {modelOptions.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
                 </option>
               ))}
             </select>
           </label>
-          <label className="block text-sm font-semibold">
-            Emissione (“ora”)
-            <select className="input mt-1" value={origin} onChange={(e) => setOriginIdx(Number(e.target.value))}>
-              {origins.map((o) => (
-                <option key={o} value={o}>
-                  {fmtDay(series.timestamps[o - 1]!)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-sm font-semibold">
-            Intervallo mostrato
-            <select className="input mt-1" value={band} onChange={(e) => setBand(e.target.value as ForecastBand)}>
-              {(Object.keys(FORECAST_BANDS) as ForecastBand[]).map((k) => (
-                <option key={k} value={k}>
-                  {FORECAST_BANDS[k].label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 self-end text-sm font-semibold">
-            <input type="checkbox" className="size-5" checked={showObserved} onChange={(e) => setShowObserved(e.target.checked)} />
-            Mostra l’osservazione successiva (confronto ex-post)
-          </label>
         </div>
-        <p className="text-xs text-sand-600">
-          Dati: {dataset.meta.title} — {dataset.meta.source}, cella {dataset.meta.gridCell.lat.toFixed(3)}, {dataset.meta.gridCell.lon.toFixed(3)}. {dataset.meta.note} Le emissioni disponibili sono nel passato, così ogni previsione si può confrontare con quanto accaduto dopo.
-        </p>
       </Section>
 
       <Section
         id="previsione"
         title={`${VARIABLE_LABEL[variable] ?? variable}: prossime ${horizon} ore`}
-        aside={
-          result ? (
-            <span
-              data-testid="forecast-badge"
-              className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-bold ${result.dataClass === 'SIMULATO' ? 'border-ochre-800 bg-ochre-100 text-ochre-800' : 'border-petrol-700 bg-petrol-100 text-petrol-900'}`}
-            >
-              <span aria-hidden="true">{result.dataClass === 'SIMULATO' ? '◇' : '≈'}</span>
-              {result.dataClass === 'SIMULATO' ? 'SIMULATO' : 'STIMATO DA MODELLO'} — {result.model.kind === 'timestral' ? `${result.model.name} [${result.model.revision.slice(0, 7)}]` : result.model.name}
-            </span>
-          ) : null
-        }
+        aside={result ? <SourceBadge kind={result.dataClass === 'SIMULATO' ? 'SIMULATO' : 'STIMATO_DA_MODELLO'} detail={technical ? (result.model.kind === 'timestral' ? `${result.model.name} [${result.model.revision.slice(0, 7)}]` : result.model.name) : modelPlain} testId="forecast-badge" /> : null}
       >
         {run.status === 'unavailable' && (
-          <Alert tone="warn" title={FORECAST_TEXT.notConfigured}>
-            <p>
-              {run.message !== FORECAST_TEXT.notConfigured && <>{run.message}. </>}Il servizio di inferenza Timestral non è raggiungibile da questa installazione, quindi non viene mostrata alcuna previsione Timestral e nessun valore viene sostituito. Le baseline restano disponibili.
-            </p>
+          <Alert tone="warn" title={ADVANCED_UNAVAILABLE.title}>
+            <p>{ADVANCED_UNAVAILABLE.text}</p>
+            <button type="button" className="btn-secondary mt-2" onClick={() => setModel('baseline-persistenza-stagionale')}>
+              Mostra la previsione di base
+            </button>
+            <details className="mt-2 text-xs" open={technical}>
+              <summary className="cursor-pointer font-semibold">Dettagli tecnici</summary>
+              <p className="font-semibold">{FORECAST_TEXT.notConfigured}</p>
+              <p>
+                {run.message !== FORECAST_TEXT.notConfigured && <>{run.message}. </>}Il servizio di inferenza Timestral ({MODEL_CHOICES.find((m) => m.id === model)!.label}) non è raggiungibile da questa installazione: non viene mostrata alcuna previsione Timestral e nessun valore viene sostituito.
+              </p>
+            </details>
           </Alert>
         )}
-        {run.status === 'error' && <Alert tone="error" title="Previsione non disponibile">{run.message}</Alert>}
+        {run.status === 'error' && (
+          <Alert tone="error" title="Previsione non disponibile in questo momento">
+            <p>Riprova più tardi o consulta la previsione di base.</p>
+            <details className="mt-1 text-xs" open={technical}>
+              <summary className="cursor-pointer font-semibold">Dettagli tecnici</summary>
+              <p>{run.message}</p>
+            </details>
+          </Alert>
+        )}
         {run.status === 'loading' && <p className="text-sm">Calcolo in corso…</p>}
         <ForecastChart
           title={`Storico e previsione di ${VARIABLE_LABEL[variable] ?? variable}`}
@@ -261,7 +310,6 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
                 Probabilità massima di valori {threshold.direction} {formatNumber(threshold.value, series.unit)}: {Math.round(finding.maxProbability * 100)}%, sotto il minimo indicato ({Math.round(threshold.minProbability * 100)}%).
               </p>
             )}
-            <p className="mt-1 text-xs text-sand-600">La probabilità è letta dai 21 quantili previsti: non è una “affidabilità” del modello.</p>
           </div>
         )}
         {chartForecast && (
@@ -273,8 +321,8 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
                 <thead>
                   <tr>
                     <th scope="col">Ora (Europe/Rome)</th>
-                    <th scope="col">Mediana</th>
-                    <th scope="col">{b.label}</th>
+                    <th scope="col">{technical ? 'Mediana' : 'Valore centrale'}</th>
+                    <th scope="col">{technical ? b.label : 'Fascia di variazione'}</th>
                     <th scope="col">Prob. soglia</th>
                     {showObserved && <th scope="col">Osservato dopo</th>}
                   </tr>
@@ -301,37 +349,47 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
       </Section>
 
       <Section id="soglia" title={urban ? 'Soglia dell’esperto' : 'Soglie dell’agronomo'}>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="block text-sm font-semibold">
-            Valore soglia ({series.unit})
-            <input className="input mt-1" type="number" step="any" value={threshold.value} onChange={(e) => setThreshold({ ...threshold, value: Number(e.target.value) })} />
-          </label>
-          <label className="block text-sm font-semibold">
-            Direzione
-            <select className="input mt-1" value={threshold.direction} onChange={(e) => setThreshold({ ...threshold, direction: e.target.value as 'sopra' | 'sotto' })}>
-              <option value="sopra">sopra la soglia</option>
-              <option value="sotto">sotto la soglia</option>
-            </select>
-          </label>
-          <label className="block text-sm font-semibold">
-            Probabilità minima per segnalare (%)
-            <input className="input mt-1" type="number" min={1} max={99} value={Math.round(threshold.minProbability * 100)} onChange={(e) => setThreshold({ ...threshold, minProbability: Math.min(0.99, Math.max(0.01, Number(e.target.value) / 100)) })} />
-          </label>
-          <label className="block text-sm font-semibold">
-            Ruolo di chi fissa la soglia
-            <input className="input mt-1" value={threshold.expertRole} onChange={(e) => setThreshold({ ...threshold, expertRole: e.target.value })} />
-          </label>
-        </div>
-        <label className="block text-sm font-semibold">
-          Motivazione
-          <input className="input mt-1" value={threshold.rationale} onChange={(e) => setThreshold({ ...threshold, rationale: e.target.value })} />
-        </label>
+        <p className="text-sm" data-testid="threshold-plain">
+          Segnala quando la probabilità di valori {threshold.direction} {formatNumber(threshold.value, series.unit)} supera il {Math.round(threshold.minProbability * 100)}%. Soglia fissata da: {threshold.expertRole} — {threshold.rationale}.
+        </p>
+        <details className="text-sm" open={technical}>
+          <summary className="cursor-pointer font-semibold text-petrol-700">Modifica la soglia</summary>
+          <div className="mt-2 space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="block text-sm font-semibold">
+                Valore soglia ({series.unit})
+                <input className="input mt-1" type="number" step="any" value={threshold.value} onChange={(e) => setThreshold({ ...threshold, value: Number(e.target.value) })} />
+              </label>
+              <label className="block text-sm font-semibold">
+                Direzione
+                <select className="input mt-1" value={threshold.direction} onChange={(e) => setThreshold({ ...threshold, direction: e.target.value as 'sopra' | 'sotto' })}>
+                  <option value="sopra">sopra la soglia</option>
+                  <option value="sotto">sotto la soglia</option>
+                </select>
+              </label>
+              <label className="block text-sm font-semibold">
+                Probabilità minima per segnalare (%)
+                <input className="input mt-1" type="number" min={1} max={99} value={Math.round(threshold.minProbability * 100)} onChange={(e) => setThreshold({ ...threshold, minProbability: Math.min(0.99, Math.max(0.01, Number(e.target.value) / 100)) })} />
+              </label>
+              <label className="block text-sm font-semibold">
+                Ruolo di chi fissa la soglia
+                <input className="input mt-1" value={threshold.expertRole} onChange={(e) => setThreshold({ ...threshold, expertRole: e.target.value })} />
+              </label>
+            </div>
+            <label className="block text-sm font-semibold">
+              Motivazione
+              <input className="input mt-1" value={threshold.rationale} onChange={(e) => setThreshold({ ...threshold, rationale: e.target.value })} />
+            </label>
+            {zones.length > 0 && result && (
+              <label className="block max-w-xs text-sm font-semibold">
+                Frazione di acqua disponibile già consumata che fa scattare l’attenzione
+                <input className="input mt-1" type="number" step={0.05} min={0.1} max={0.9} value={depletion} onChange={(e) => setDepletion(Number(e.target.value))} />
+              </label>
+            )}
+          </div>
+        </details>
         {zones.length > 0 && result && (
           <div className="space-y-2">
-            <label className="block max-w-xs text-sm font-semibold">
-              Frazione di acqua disponibile già consumata che fa scattare l’attenzione
-              <input className="input mt-1" type="number" step={0.05} min={0.1} max={0.9} value={depletion} onChange={(e) => setDepletion(Number(e.target.value))} />
-            </label>
             <p className="text-xs text-sand-600">Soglia di zona = punto di appassimento + frazione × (capacità di campo − punto di appassimento). La previsione è la stessa per tutto il vigneto (una cella di rianalisi): le zone cambiano solo per la soglia.</p>
             <div className="overflow-x-auto">
               <table className="table-base text-sm" data-testid="zone-table">
@@ -364,103 +422,150 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
         )}
       </Section>
 
-      <Section id="confronto" title="Confronto con le baseline">
-        <p className="text-sm">Un modello è utile solo se fa meglio delle baseline sugli stessi dati. Qui il confronto sui tagli storici (backtest) e, se mostri l’osservazione, su questa emissione.</p>
-        {btSummary ? (
-          <div className="overflow-x-auto">
-            <table className="table-base text-sm" data-testid="backtest-table">
-              <caption className="text-left text-xs text-sand-600">
-                Backtest walk-forward ({btSummary.results[0]?.origins ?? 0} emissioni, {btSummary.period.from.slice(0, 10)} → {btSummary.period.to.slice(0, 10)}): {backtestSummary.protocol}
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Modello</th>
-                  <th scope="col">Errore medio (MAE)</th>
-                  <th scope="col">WQL</th>
-                  <th scope="col">Copertura 80%</th>
-                  <th scope="col">Falsi allarmi</th>
-                  <th scope="col">Criticità mancate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {btSummary.results.map((r) => (
-                  <tr key={r.adapter}>
-                    <th scope="row">{r.name}</th>
-                    <td className="tabular-nums">{formatNumber(r.mae, btSummary.unit)}</td>
-                    <td className="tabular-nums">{formatNumber(r.wql, '')}</td>
-                    <td className="tabular-nums">{Math.round(r.coverage80 * 100)}% (atteso 80%)</td>
-                    <td className="tabular-nums">{r.alerts?.falsiAllarmi ?? '—'}</td>
-                    <td className="tabular-nums">{r.alerts?.criticitaMancate ?? '—'}</td>
-                  </tr>
-                ))}
-                {btSummary.notRun.map((n) => (
-                  <tr key={n.adapter}>
-                    <th scope="row">{n.adapter}</th>
-                    <td colSpan={5}>non eseguito — {n.reason}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="text-sm">Backtest non ancora eseguito per questa combinazione di grandezza e orizzonte.</p>
-        )}
-        {showObserved && (
-          <ul className="text-sm" data-testid="expost-now">
-            {[...(result && isTimestral ? [result] : []), ...baselines].map((r) => {
-              const m = mae(r);
-              return (
-                <li key={r.model.id}>
-                  {r.model.name}: errore medio su questa emissione {m === null ? 'n.d.' : formatNumber(m, series.unit)}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </Section>
+      <details className="card space-y-4" open={technical} data-testid="forecast-technical">
+        <summary className="cursor-pointer text-lg font-bold text-petrol-900">Approfondimento tecnico</summary>
+        <p className="text-sm text-sand-600">Emissione, intervalli probabilistici, confronto con le baseline, modello, dati e provenienza: le informazioni per la verifica e l’audit.</p>
 
-      <Section id="modello" title="Modello, dati e provenienza">
-        <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[12rem_1fr]">
-          <dt className="font-semibold text-sand-600">Modello</dt>
-          <dd>{result ? `${result.model.name} — versione ${result.model.version}, revisione ${result.model.revision}` : MODEL_CHOICES.find((m) => m.id === model)!.label}</dd>
-          <dt className="font-semibold text-sand-600">Stato</dt>
-          <dd>{isTimestral ? (forecastServiceUrl() ? 'Beta da validare — servizio configurato' : `Beta da validare — ${FORECAST_TEXT.notConfigured}`) : 'Baseline statistica di riferimento'}</dd>
-          <dt className="font-semibold text-sand-600">Licenza</dt>
-          <dd>{result?.model.license ?? (isTimestral ? 'Codice: Apache-2.0 · Pesi: Modified MIT (Hugging Face)' : 'codice del progetto')}</dd>
-          <dt className="font-semibold text-sand-600">Emissione (“ora”)</dt>
-          <dd>{fmtDay(issuedAt)} (ultimo dato dello storico)</dd>
-          <dt className="font-semibold text-sand-600">Dati in ingresso</dt>
-          <dd>
-            {lineage.source}, {lineage.period.from.slice(0, 16)} → {lineage.period.to.slice(0, 16)} UTC, {request.targets[0]!.values.length} ore, mancanti {lineage.missingPct}%
-          </dd>
-          <dt className="font-semibold text-sand-600">Covariate note</dt>
-          <dd>{lineage.covariates.join(', ') || 'nessuna'}</dd>
-          <dt className="font-semibold text-sand-600">Licenza dei dati</dt>
-          <dd>{lineage.license}</dd>
-          {result && (
-            <>
-              <dt className="font-semibold text-sand-600">Impronta dell’input</dt>
-              <dd className="font-mono text-xs break-all">{result.inputHash}</dd>
-              <dt className="font-semibold text-sand-600">Tempo di calcolo</dt>
-              <dd>{result.inferenceMs} ms</dd>
-            </>
+        <section aria-labelledby="opzioni-h" className="space-y-3">
+          <h2 id="opzioni-h" className="h-section">
+            Opzioni avanzate
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="block text-sm font-semibold">
+              Emissione (“ora”)
+              <select className="input mt-1" value={origin} onChange={(e) => setOriginIdx(Number(e.target.value))}>
+                {origins.map((o) => (
+                  <option key={o} value={o}>
+                    {fmtDay(series.timestamps[o - 1]!)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm font-semibold">
+              Intervallo mostrato
+              <select className="input mt-1" value={band} onChange={(e) => setBand(e.target.value as ForecastBand)}>
+                {(Object.keys(FORECAST_BANDS) as ForecastBand[]).map((k) => (
+                  <option key={k} value={k}>
+                    {FORECAST_BANDS[k].label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 self-end text-sm font-semibold">
+              <input type="checkbox" className="size-5" checked={showObserved} onChange={(e) => setShowObserved(e.target.checked)} />
+              Mostra l’osservazione successiva (confronto ex-post)
+            </label>
+          </div>
+          <p className="text-xs text-sand-600">
+            Dati: {dataset.meta.title} — {dataset.meta.source}, cella {dataset.meta.gridCell.lat.toFixed(3)}, {dataset.meta.gridCell.lon.toFixed(3)}. {dataset.meta.note} Le emissioni disponibili sono nel passato, così ogni previsione si può confrontare con quanto accaduto dopo.
+          </p>
+          <p className="text-xs text-sand-600">La probabilità di superare la soglia è letta dai 21 quantili previsti: non è una “affidabilità” del modello.</p>
+        </section>
+
+        <section aria-labelledby="confronto-h" className="space-y-3" id="confronto">
+          <h2 id="confronto-h" className="h-section">
+            Confronto con le baseline
+          </h2>
+          <p className="text-sm">Un modello è utile solo se fa meglio delle baseline sugli stessi dati. Qui il confronto sui tagli storici (backtest) e, se mostri l’osservazione, su questa emissione.</p>
+          {btSummary ? (
+            <div className="overflow-x-auto">
+              <table className="table-base text-sm" data-testid="backtest-table">
+                <caption className="text-left text-xs text-sand-600">
+                  Backtest walk-forward ({btSummary.results[0]?.origins ?? 0} emissioni, {btSummary.period.from.slice(0, 10)} → {btSummary.period.to.slice(0, 10)}): {backtestSummary.protocol}
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Modello</th>
+                    <th scope="col">Errore medio (MAE)</th>
+                    <th scope="col">WQL</th>
+                    <th scope="col">Copertura 80%</th>
+                    <th scope="col">Falsi allarmi</th>
+                    <th scope="col">Criticità mancate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {btSummary.results.map((r) => (
+                    <tr key={r.adapter}>
+                      <th scope="row">{r.name}</th>
+                      <td className="tabular-nums">{formatNumber(r.mae, btSummary.unit)}</td>
+                      <td className="tabular-nums">{formatNumber(r.wql, '')}</td>
+                      <td className="tabular-nums">{Math.round(r.coverage80 * 100)}% (atteso 80%)</td>
+                      <td className="tabular-nums">{r.alerts?.falsiAllarmi ?? '—'}</td>
+                      <td className="tabular-nums">{r.alerts?.criticitaMancate ?? '—'}</td>
+                    </tr>
+                  ))}
+                  {btSummary.notRun.map((n) => (
+                    <tr key={n.adapter}>
+                      <th scope="row">{n.adapter}</th>
+                      <td colSpan={5}>non eseguito — {n.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm">Backtest non ancora eseguito per questa combinazione di grandezza e orizzonte.</p>
           )}
-          <dt className="font-semibold text-sand-600">Avvertenze</dt>
-          <dd>
-            <ul className="list-disc pl-5">
-              {(result?.warnings ?? []).map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-              {lineage.qaFlags.map((w) => (
-                <li key={w}>{w}</li>
-              ))}
-              {(result?.model.limitations ?? []).map((w) => (
-                <li key={w}>{w}</li>
-              ))}
+          {showObserved && (
+            <ul className="text-sm" data-testid="expost-now">
+              {[...(result && isTimestral ? [result] : []), ...baselines].map((r) => {
+                const m = mae(r);
+                return (
+                  <li key={r.model.id}>
+                    {r.model.name}: errore medio su questa emissione {m === null ? 'n.d.' : formatNumber(m, series.unit)}
+                  </li>
+                );
+              })}
             </ul>
-          </dd>
-        </dl>
-      </Section>
+          )}
+        </section>
+
+        <section aria-labelledby="modello-h" className="space-y-3" id="modello">
+          <h2 id="modello-h" className="h-section">
+            Modello, dati e provenienza
+          </h2>
+          <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[12rem_1fr]">
+            <dt className="font-semibold text-sand-600">Modello</dt>
+            <dd>{result ? `${result.model.name} — versione ${result.model.version}, revisione ${result.model.revision}` : MODEL_CHOICES.find((m) => m.id === model)!.label}</dd>
+            <dt className="font-semibold text-sand-600">Stato</dt>
+            <dd>{isTimestral ? (forecastServiceUrl() ? 'Beta da validare — servizio configurato' : `Beta da validare — ${FORECAST_TEXT.notConfigured}`) : 'Baseline statistica di riferimento'}</dd>
+            <dt className="font-semibold text-sand-600">Licenza</dt>
+            <dd>{result?.model.license ?? (isTimestral ? 'Codice: Apache-2.0 · Pesi: Modified MIT (Hugging Face)' : 'codice del progetto')}</dd>
+            <dt className="font-semibold text-sand-600">Emissione (“ora”)</dt>
+            <dd>{fmtDay(issuedAt)} (ultimo dato dello storico)</dd>
+            <dt className="font-semibold text-sand-600">Dati in ingresso</dt>
+            <dd>
+              {lineage.source}, {lineage.period.from.slice(0, 16)} → {lineage.period.to.slice(0, 16)} UTC, {request.targets[0]!.values.length} ore, mancanti {lineage.missingPct}%
+            </dd>
+            <dt className="font-semibold text-sand-600">Covariate note</dt>
+            <dd>{lineage.covariates.join(', ') || 'nessuna'}</dd>
+            <dt className="font-semibold text-sand-600">Licenza dei dati</dt>
+            <dd>{lineage.license}</dd>
+            {result && (
+              <>
+                <dt className="font-semibold text-sand-600">Impronta dell’input</dt>
+                <dd className="font-mono text-xs break-all">{result.inputHash}</dd>
+                <dt className="font-semibold text-sand-600">Tempo di calcolo</dt>
+                <dd>{result.inferenceMs} ms</dd>
+              </>
+            )}
+            <dt className="font-semibold text-sand-600">Avvertenze</dt>
+            <dd>
+              <ul className="list-disc pl-5">
+                {(result?.warnings ?? []).map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+                {lineage.qaFlags.map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+                {(result?.model.limitations ?? []).map((w) => (
+                  <li key={w}>{w}</li>
+                ))}
+              </ul>
+            </dd>
+          </dl>
+        </section>
+      </details>
 
       <Section id="registro" title="Previsioni registrate e verifica ex-post">
         {msg && <Alert tone="ok">{msg}</Alert>}
@@ -501,4 +606,25 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
       </Section>
     </div>
   );
+}
+
+/** "tra X e Y": con una cifra decimale in più quando l'arrotondamento renderebbe uguali i due estremi. */
+function rangeText(lo: number, hi: number, unit: string): string {
+  let a = formatNumber(lo, '');
+  let b = formatNumber(hi, unit);
+  if (a === formatNumber(hi, '') && lo !== hi) {
+    const fmt = (v: number) => v.toLocaleString('it-IT', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    a = fmt(lo);
+    b = unit ? `${fmt(hi)} ${unit}` : fmt(hi);
+  }
+  return `tra ${a} e ${b}`;
+}
+
+/** Ora del valore centrale più vicino alla soglia: il massimo se la soglia è "sopra", il minimo se è "sotto". */
+function peakIndex(median: number[], direction: 'sopra' | 'sotto'): number {
+  let best = -1;
+  for (let i = 0; i < median.length; i++) {
+    if (best < 0 || (direction === 'sopra' ? median[i]! > median[best]! : median[i]! < median[best]!)) best = i;
+  }
+  return best;
 }
