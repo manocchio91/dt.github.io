@@ -26,6 +26,20 @@ class ForecastRequestV1(BaseModel):
     # forma (serie, covariate, tempo + orizzonte): solo grandezze realmente note in anticipo
     known_covariates: Matrix3 | None = None
     input_hash: str | None = Field(default=None, max_length=128)
+    # limiti fisici facoltativi per variata [min, max] (null = nessun limite su quel lato o variata):
+    # stabiliti lato server dal proxy, mai dal browser
+    physical_bounds: list[tuple[float | None, float | None] | None] | None = Field(default=None, max_length=8)
+
+    @field_validator("physical_bounds")
+    @classmethod
+    def ordered_bounds(cls, v):
+        for b in v or []:
+            if b is None:
+                continue
+            lo, hi = b
+            if any(x is not None and not math.isfinite(x) for x in (lo, hi)) or (lo is not None and hi is not None and lo >= hi):
+                raise ValueError("limiti fisici non validi")
+        return v
 
     @field_validator("context", "past_covariates", "known_covariates")
     @classmethod
@@ -53,3 +67,6 @@ class ForecastResponseV1(BaseModel):
     warnings: list[str]
     input_hash: str
     cached: bool = False
+    adapter_version: str
+    # una voce per variata: rapporto del vincolo fisico o null se non richiesto
+    constraints: list[dict | None] = []
