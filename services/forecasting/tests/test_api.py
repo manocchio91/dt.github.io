@@ -117,6 +117,14 @@ def test_valori_non_finiti_rifiutati():
     raw = '{"schema_version":1,"model":"%s","revision":"%s","frequency":"1h","prediction_length":2,"context":[[[NaN]]]}' % (M5, MODELS[M5])
     r = client().post("/v1/forecast", content=raw, headers={**AUTH, "content-type": "application/json"})
     assert r.status_code == 422
+    assert "context" in r.text and "NaN" not in r.text  # campo indicato, valori mai ripetuti
+
+
+def test_errore_di_validazione_senza_valori_della_serie():
+    secret_like = 987654.321
+    r = client().post("/v1/forecast", json=body(context=[[["x"] + [secret_like] * 199]]), headers=AUTH)
+    assert r.status_code == 422
+    assert str(secret_like) not in r.text
 
 
 def test_mancanti_ammessi_e_segnalati():

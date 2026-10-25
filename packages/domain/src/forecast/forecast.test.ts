@@ -242,8 +242,13 @@ describe('Riepilogo del backtest usato dall’interfaccia', () => {
     const r = await runBacktest(caseConfig(c), new SeasonalNaiveAdapter());
     const stored = summary.cases.find((x) => x.id === c.id)!.results.find((x) => x.adapter === 'baseline-persistenza-stagionale')!;
     expect(stored).toEqual(JSON.parse(JSON.stringify(r.metrics)));
-    // Timestral non eseguito: dichiarato, mai inventato
-    expect(summary.cases.every((x) => x.results.every((m) => !m.adapter.startsWith('mistralai/')) || x.notRun.length === 0)).toBe(true);
+    // ogni modello Timestral è o eseguito (con metriche) o dichiarato non eseguito/non avviato: mai entrambi, mai omesso
+    for (const x of summary.cases) {
+      const run = x.results.filter((m) => m.adapter.startsWith('mistralai/')).map((m) => m.adapter);
+      const notRun = x.notRun.map((n) => n.adapter);
+      expect(run.filter((m) => notRun.includes(m))).toEqual([]);
+      expect([...run, ...notRun].sort()).toEqual(['mistralai/Timestral-28M', 'mistralai/Timestral-5M']);
+    }
   });
 });
 
