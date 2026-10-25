@@ -28,12 +28,40 @@ import { Alert } from '../components/ui';
 
 const QUESTIONS: Record<(typeof ONBOARDING_STEPS)[number], string> = {
   profilo: 'Chi sei?',
-  ambito: 'Dove vuoi lavorare?',
-  decisione: 'Quale decisione devi affrontare?',
-  area: 'Quale area o progetto vuoi analizzare?',
-  dati: 'Quali dati hai già?',
-  modalita: 'Come preferisci lavorare?',
+  ambito: 'In quale ambito lavori?',
+  decisione: 'Quale decisione devi prendere?',
+  area: 'Su quale area, parcella o progetto lavori?',
+  dati: 'Quali dati possiedi già?',
+  modalita: 'Preferisci la modalità guidata o tecnica?',
 };
+
+/** Bozza della guida: si riprende da dove si era rimasti, anche dopo essere usciti. */
+const DRAFT_KEY = 'mdt:onboarding:bozza';
+type Saved = { draft: OnboardingDraft; step: number };
+
+function readDraft(): Saved | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as Saved;
+    // solo i campi della guida: nessun campo estraneo (per esempio un ruolo) entra nella bozza
+    const d = v.draft ?? {};
+    const draft: OnboardingDraft = { profile: d.profile, sector: d.sector, decision: d.decision, area: d.area, data: Array.isArray(d.data) ? d.data : [], mode: d.mode };
+    const step = Number.isInteger(v.step) ? Math.min(Math.max(v.step, 0), ONBOARDING_STEPS.length - 1) : 0;
+    return { draft, step };
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(v: Saved | null) {
+  try {
+    if (v) localStorage.setItem(DRAFT_KEY, JSON.stringify(v));
+    else localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* archiviazione non disponibile: la bozza vale solo per questa visita */
+  }
+}
 
 function Choice({ name, value, checked, onChange, title, hint, type = 'radio' }: { name: string; value: string; checked: boolean; onChange: () => void; title: string; hint: string; type?: 'radio' | 'checkbox' }) {
   return (
@@ -57,17 +85,23 @@ export function OnboardingPage() {
   const { projects, save, openDemo } = useStore();
   const { current } = useAuth();
   const perms = usePermissions();
-  const [draft, setDraft] = useState<OnboardingDraft>(() => (editing && prefs.preferences ? { ...prefs.preferences } : { data: [] }));
-  const [step, setStep] = useState(0);
+  const [resumed] = useState(() => (editing ? null : readDraft()));
+  const [draft, setDraft] = useState<OnboardingDraft>(() => (editing && prefs.preferences ? { ...prefs.preferences } : (resumed?.draft ?? { data: [] })));
+  const [step, setStep] = useState(() => resumed?.step ?? 0);
   const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [startedAt] = useState(() => Date.now());
   const headingRef = useRef<HTMLHeadingElement>(null);
   const key = ONBOARDING_STEPS[step]!;
+  const last = step === ONBOARDING_STEPS.length - 1;
 
   useEffect(() => {
     headingRef.current?.focus();
   }, [step]);
+
+  useEffect(() => {
+    if (!editing) writeDraft({ draft, step });
+  }, [editing, draft, step]);
 
   // in modifica, le preferenze dell'account possono arrivare dopo il primo render
   const savedPrefs = prefs.preferences;
@@ -99,6 +133,7 @@ export function OnboardingPage() {
     try {
       const p = finalizeOnboarding(draft, new Date());
       await prefs.save(p);
+      writeDraft(null);
       const target = onboardingTarget(
         p,
         projects.map((b) => ({ id: b.project.id, sector: b.project.sector, hasArea: !!b.area })),
@@ -126,6 +161,7 @@ export function OnboardingPage() {
 
   const skipTo = async (s: Sector) => {
     prefs.skip();
+    writeDraft(null);
     try {
       const id = await openDemo(s);
       nav(labPath(id, s));
@@ -180,7 +216,7 @@ export function OnboardingPage() {
           checked={draft.area?.kind === 'demo'}
           onChange={() => setDraft({ ...draft, area: { kind: 'demo' } })}
           title={sector === 'agriculture' ? 'Vigneto dimostrativo (Molise)' : 'Area dimostrativa: Campobasso, Piazza Vittorio Emanuele II'}
-          hint="Dati simulati, pronti da esplorare. Consigliato per iniziare."
+          hint="Valori SIMULATI, pronti da esplorare senza registrazione. Consigliato per iniziare."
         />
         {perms.canEdit && (
           <Choice
@@ -188,8 +224,8 @@ export function OnboardingPage() {
             value="nuovo"
             checked={draft.area?.kind === 'nuovo'}
             onChange={() => setDraft({ ...draft, area: { kind: 'nuovo', name: nuovoName } })}
-            title="Un mio nuovo progetto"
-            hint="Disegnerai l’area sulla mappa o inserirai le coordinate."
+            title={sector === 'agriculture' ? 'Una mia nuova parcella o vigneto' : 'Una mia nuova area (piazza, strada, parco)'}
+            hint={sector === 'agriculture' ? 'Disegnerai la parcella sulla mappa o inserirai le coordinate.' : 'Disegnerai l’area sulla mappa o inserirai le coordinate.'}
           />
         )}
         {draft.area?.kind === 'nuovo' && (
@@ -203,8 +239,12 @@ export function OnboardingPage() {
               value={nuovoName}
               onChange={(e) => setDraft({ ...draft, area: { kind: 'nuovo', name: e.target.value } })}
               placeholder={sector === 'agriculture' ? 'es. Vigna sotto casa' : 'es. Piazza del mercato'}
+              aria-describedby="nome-progetto-aiuto"
               autoFocus
             />
+            <p id="nome-progetto-aiuto" className="mt-1 text-xs text-sand-600">
+              Almeno 3 caratteri. Potrai cambiarlo dopo.
+            </p>
           </div>
         )}
         {sectorProjects.length > 0 && (
@@ -213,7 +253,7 @@ export function OnboardingPage() {
             value="esistente"
             checked={draft.area?.kind === 'esistente'}
             onChange={() => setDraft({ ...draft, area: { kind: 'esistente', projectId: sectorProjects[0]!.project.id } })}
-            title="Un progetto che ho già"
+            title={sector === 'agriculture' ? 'Una parcella o un progetto che ho già' : 'Un’area o un progetto che ho già'}
             hint={`${sectorProjects.length} progetti disponibili in questo ambito.`}
           />
         )}
@@ -259,23 +299,35 @@ export function OnboardingPage() {
     );
   } else if (key === 'modalita') {
     body = (
-      <div className="grid gap-2 sm:grid-cols-2">
-        {(['guidata', 'tecnica'] as WorkMode[]).map((m) => (
-          <Choice key={m} name="modalita" value={m} checked={draft.mode === m} onChange={() => setDraft({ ...draft, mode: m })} title={MODE_LABEL[m].title} hint={MODE_LABEL[m].hint} />
-        ))}
-      </div>
+      <>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(['guidata', 'tecnica'] as WorkMode[]).map((m) => (
+            <Choice key={m} name="modalita" value={m} checked={draft.mode === m} onChange={() => setDraft({ ...draft, mode: m })} title={MODE_LABEL[m].title} hint={MODE_LABEL[m].hint} />
+          ))}
+        </div>
+        <p className="text-sm text-sand-600">Puoi cambiarla quando vuoi da “Le mie preferenze”. In entrambe le modalità dati, fonti e storico restano registrati.</p>
+      </>
     );
   }
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-sand-600" aria-live="polite">
+        <p className="text-sm font-semibold text-sand-600" aria-live="polite" data-testid="onboarding-progress">
           {editing ? 'Modifica preferenze · ' : ''}Domanda {step + 1} di {ONBOARDING_STEPS.length}
         </p>
-        <p className="text-xs text-sand-600">Circa 1 minuto · le risposte si possono cambiare dopo</p>
+        {!editing && (
+          <button type="button" className="btn-ghost text-sm underline" onClick={() => nav('/')}>
+            Esci e riprendi dopo
+          </button>
+        )}
       </div>
-      <progress className="h-2 w-full accent-petrol-700" max={ONBOARDING_STEPS.length} value={step + 1} aria-label="Avanzamento" />
+      <progress className="h-2 w-full accent-petrol-700" max={ONBOARDING_STEPS.length} value={step + 1} aria-label={`Avanzamento: domanda ${step + 1} di ${ONBOARDING_STEPS.length}`} />
+      {resumed && resumed.step > 0 && step === resumed.step && (
+        <p className="rounded-lg bg-petrol-100 p-2 text-sm text-petrol-900" role="status">
+          Hai ripreso la guida da dove l’avevi lasciata: le risposte date finora sono conservate.
+        </p>
+      )}
 
       <form onSubmit={next} className="card space-y-4" noValidate>
         <fieldset className="space-y-3">
@@ -296,12 +348,17 @@ export function OnboardingPage() {
         {prefs.error && <Alert tone="error">{prefs.error}</Alert>}
 
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-sand-200 pt-4">
-          <button type="button" className="btn-ghost" onClick={() => (step === 0 ? nav(-1) : setStep(step - 1))}>
-            ← Indietro
+          <button type="button" className="btn-secondary" onClick={() => (step === 0 ? nav(-1) : setStep(step - 1))}>
+            Indietro
           </button>
-          <button type="submit" className="btn-primary min-w-40" disabled={busy}>
-            {step === ONBOARDING_STEPS.length - 1 ? (busy ? 'Avvio…' : editing ? 'Salva e apri' : 'Inizia') : 'Avanti →'}
+          <button type="submit" className="btn-primary min-w-40" disabled={busy} aria-describedby={last ? 'ultimo-passo' : undefined}>
+            {busy ? 'Apertura…' : 'Continua'}
           </button>
+          {last && (
+            <p id="ultimo-passo" className="w-full text-xs text-sand-600 sm:text-right">
+              {editing ? 'Le preferenze vengono salvate e si apre il progetto scelto.' : 'Si apre il progetto scelto, pronto da esplorare.'}
+            </p>
+          )}
         </div>
       </form>
 

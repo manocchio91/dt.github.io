@@ -17,7 +17,7 @@ beforeEach(() => localStorage.clear());
 
 async function answer(user: ReturnType<typeof userEvent.setup>, name: RegExp | null, role: 'radio' | 'checkbox' = 'radio') {
   if (name) await user.click(screen.getByRole(role, { name }));
-  await user.click(screen.getByRole('button', { name: /Avanti|Inizia|Salva e apri/ }));
+  await user.click(screen.getByRole('button', { name: /^Continua$/ }));
 }
 
 /** Tab fino al pulsante indicato, come farebbe chi usa solo la tastiera. */
@@ -37,10 +37,10 @@ describe('Onboarding — percorso urbano da ospite', () => {
     expect(screen.getByRole('heading', { name: 'Chi sei?' })).toHaveFocus();
     expect(screen.getByText(/Non cambia i tuoi permessi/)).toBeInTheDocument();
     await answer(user, /Tecnico comunale/);
-    expect(screen.getByRole('heading', { name: 'Dove vuoi lavorare?' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'In quale ambito lavori?' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /Città/ })).toBeChecked(); // suggerito dal profilo
     await answer(user, null);
-    await answer(user, /Ridurre il calore/);
+    await answer(user, /Controllare una piazza/);
     await answer(user, /Area dimostrativa/);
     expect(screen.queryByText(/sonda|vigneto/i)).toBeNull();
     await answer(user, /Temperature delle superfici/, 'checkbox');
@@ -58,7 +58,7 @@ describe('Onboarding — percorso urbano da ospite', () => {
       await user.keyboard(' ');
     };
     const proceed = async () => {
-      await tabTo(user, /Avanti|Inizia/);
+      await tabTo(user, /^Continua$/);
       await user.keyboard('{Enter}');
     };
     await select(); // profilo: primo = tecnico comunale
@@ -79,7 +79,7 @@ describe('Onboarding — percorso urbano da ospite', () => {
   it('non permette di proseguire senza risposta e lo spiega', async () => {
     const user = userEvent.setup();
     renderApp(<OnboardingPage />, { route: '/benvenuto', path: '/benvenuto' });
-    await user.click(screen.getByRole('button', { name: /Avanti/ }));
+    await user.click(screen.getByRole('button', { name: /^Continua$/ }));
     expect(screen.getByRole('alert')).toHaveTextContent(/Scegli il profilo/);
   });
 });
@@ -107,7 +107,7 @@ describe('Onboarding — percorso agricolo e separazione degli ambiti', () => {
     renderApp(<OnboardingPage />, { route: '/benvenuto', path: '/benvenuto' });
     await answer(user, /Revisore/);
     await answer(user, /Città/);
-    await answer(user, /Ridurre il calore/);
+    await answer(user, /Controllare una piazza/);
     await user.click(screen.getByRole('button', { name: /Indietro/ }));
     await user.click(screen.getByRole('button', { name: /Indietro/ }));
     await answer(user, /Campagna/);
@@ -135,7 +135,7 @@ describe('Demo senza registrazione e preferenze modificabili', () => {
     renderApp(<OnboardingPage />, { route: '/benvenuto?modifica=1', path: '/benvenuto' });
     expect(screen.getByText(/Modifica preferenze/)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('radio', { name: /Gestore del verde/ })).toBeChecked());
-    for (let i = 0; i < 5; i++) await user.click(screen.getByRole('button', { name: /Avanti/ }));
+    for (let i = 0; i < 5; i++) await user.click(screen.getByRole('button', { name: /^Continua$/ }));
     await answer(user, /Tecnica/);
     await waitFor(() => expect(storedPrefs()).toMatchObject({ profile: 'gestore_verde', mode: 'tecnica', decision: 'scegliere_intervento' }));
   });
@@ -145,8 +145,8 @@ describe('Demo senza registrazione e preferenze modificabili', () => {
     renderApp(<OnboardingPage />, { route: '/benvenuto', path: '/benvenuto' });
     await answer(user, /Tecnico comunale/);
     await answer(user, null);
-    await answer(user, /Scegliere tra due/);
-    await user.click(screen.getByRole('radio', { name: /Un mio nuovo progetto/ }));
+    await answer(user, /Confrontare possibili interventi/);
+    await user.click(screen.getByRole('radio', { name: /Una mia nuova area/ }));
     await user.type(screen.getByLabelText('Nome del progetto'), 'Piazza del mercato');
     await answer(user, null);
     await answer(user, null);
@@ -175,8 +175,8 @@ describe('Il profilo non aumenta i permessi', () => {
     await answer(user, /Revisore/);
     expect(screen.getByTestId('perms')).toHaveTextContent('viewer:false');
     await answer(user, /Città/);
-    await answer(user, /Preparare una proposta/);
-    expect(screen.queryByRole('radio', { name: /Un mio nuovo progetto/ })).toBeNull();
+    await answer(user, /Confrontare possibili interventi/);
+    expect(screen.queryByRole('radio', { name: /Una mia nuova area/ })).toBeNull();
     expect(screen.getByText(/non crearne di nuovi/)).toBeInTheDocument();
     await answer(user, /Area dimostrativa/);
     await answer(user, null);
@@ -194,7 +194,7 @@ describe('Persistenza su Supabase e cambio di organizzazione', () => {
     renderApp(<OnboardingPage />, { auth, repo: remoteRepo([seedVineyard(new Date(), '2026-08-20')]), route: '/benvenuto', path: '/benvenuto' });
     await answer(user, /Agronomo/);
     await answer(user, null);
-    await answer(user, /Registrare cosa vedo/);
+    await answer(user, /Osservare una parcella/);
     await answer(user, /Vigneto dimostrativo/);
     await answer(user, null);
     await answer(user, /Tecnica/);

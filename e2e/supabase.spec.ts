@@ -35,8 +35,8 @@ test('ruolo "lettura": nessun comando di modifica, anche scegliendo il profilo "
   await expect(page.getByText(/il tuo ruolo è: lettura/)).toBeVisible();
   await answer(page, /Revisore/);
   await answer(page, /Città/);
-  await answer(page, /Preparare una proposta/);
-  await expect(page.getByRole('radio', { name: /Un mio nuovo progetto/ })).toHaveCount(0);
+  await answer(page, /Confrontare possibili interventi/);
+  await expect(page.getByRole('radio', { name: /Una mia nuova area/ })).toHaveCount(0);
   await answer(page, /Area dimostrativa/);
   await answer(page, null);
   await answer(page, /Guidata/);
@@ -82,7 +82,7 @@ test('le preferenze dell’account persistono tra sessioni', async ({ page }) =>
   await page.goto(REMOTE + '/benvenuto');
   await answer(page, /Agronomo/);
   await answer(page, null);
-  await answer(page, /Registrare cosa vedo/);
+  await answer(page, /Osservare una parcella/);
   await answer(page, /Vigneto dimostrativo/);
   await answer(page, null);
   await answer(page, /Tecnica/);
@@ -92,7 +92,7 @@ test('le preferenze dell’account persistono tra sessioni', async ({ page }) =>
   // nuova pagina: nessuna copia locale, le preferenze tornano dal server
   expect(await page.evaluate(() => localStorage.getItem('mdt:onboarding:v1'))).toBeNull();
   await page.goto(REMOTE + '/');
-  await expect(page.getByText(/Agronomo o consulente · Registrare cosa vedo in campo/)).toBeVisible();
+  await expect(page.getByText(/Agronomo o consulente · Osservare una parcella in campo/)).toBeVisible();
 });
 
 test('il server rifiuta comunque le scritture di chi ha solo la lettura (RLS come protezione principale)', async ({ page }) => {

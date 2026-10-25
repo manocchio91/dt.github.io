@@ -6,7 +6,7 @@ export const REMOTE = 'http://localhost:4174';
 /** Risponde a una domanda dell'onboarding scegliendo un'opzione (o nessuna) e prosegue. */
 export async function answer(page: Page, option: RegExp | null, role: 'radio' | 'checkbox' = 'radio') {
   if (option) await page.getByRole(role, { name: option }).check();
-  await page.getByRole('button', { name: /Avanti|Inizia|Salva e apri/ }).click();
+  await page.getByRole('button', { name: /^Continua$/ }).click();
 }
 
 export async function expectQuestion(page: Page, text: string) {

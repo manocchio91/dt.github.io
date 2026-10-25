@@ -11,7 +11,7 @@ test('smartphone: onboarding completo senza scroll orizzontale e barra inferiore
   await answer(page, /Tecnico comunale/);
   await expectNoHorizontalScroll(page);
   await answer(page, null);
-  await answer(page, /Preparare una proposta/);
+  await answer(page, /Confrontare possibili interventi/);
   await answer(page, /Area dimostrativa/);
   await answer(page, null);
   await expectNoHorizontalScroll(page);

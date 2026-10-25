@@ -41,20 +41,33 @@ interface Option {
   hint: string;
 }
 
-/** Decisioni: elenchi separati per ambito, nessuna voce in comune. */
+/**
+ * Decisioni: elenchi separati per ambito, nessuna voce in comune.
+ * Le voci descrivono ciò che l'utente vuole capire: l'app non prescrive irrigazioni,
+ * trattamenti o interventi automatici.
+ */
 export const DECISIONS: Record<Sector, Option[]> = {
   urban: [
-    { id: 'ridurre_calore', title: 'Ridurre il calore in un luogo preciso', hint: 'Una piazza, una strada o un parco troppo caldi d’estate.' },
-    { id: 'scegliere_intervento', title: 'Scegliere tra due o più interventi', hint: 'Alberi, ombra, nuove superfici: quale conviene?' },
-    { id: 'motivare_proposta', title: 'Preparare una proposta da far approvare', hint: 'Con costi, limiti e motivazioni scritte.' },
-    { id: 'verificare_risultato', title: 'Verificare un intervento già fatto', hint: 'Confrontare il previsto con le misure.' },
+    { id: 'individuare_area_calda', title: 'Individuare le zone più esposte al caldo', hint: 'Capire dove il calore pesa di più sulle persone.' },
+    { id: 'ridurre_calore', title: 'Controllare una piazza, una strada o un parco', hint: 'Un luogo preciso che d’estate diventa troppo caldo.' },
+    { id: 'scegliere_intervento', title: 'Confrontare possibili interventi', hint: 'Alberi, ombra, nuove superfici: costi, acqua e benefici a confronto.' },
+    { id: 'monitorare_soglia', title: 'Tenere d’occhio una soglia di caldo', hint: 'Sapere in anticipo se e quando potrebbe essere superata.' },
+    { id: 'verificare_risultato', title: 'Verificare gli effetti di un intervento già fatto', hint: 'Confrontare quanto previsto con quanto osservato dopo.' },
   ],
   agriculture: [
-    { id: 'zona_da_controllare', title: 'Capire quale zona controllare', hint: 'Dove andare prima a fare un sopralluogo.' },
-    { id: 'valutare_irrigazione', title: 'Capire se serve acqua', hint: 'Valutare un’irrigazione di soccorso, con l’agronomo.' },
-    { id: 'documentare_campo', title: 'Registrare cosa vedo in campo', hint: 'Osservazioni e misure legate a zona e data.' },
-    { id: 'verificare_risposta', title: 'Verificare come ha risposto il vigneto', hint: 'Dopo una scelta già presa.' },
+    { id: 'valutare_irrigazione', title: 'Controllare lo stress da caldo o da siccità', hint: 'Capire se la coltura soffre. Ogni scelta su acqua o trattamenti resta tua e dell’agronomo.' },
+    { id: 'documentare_campo', title: 'Osservare una parcella', hint: 'Annotare ciò che vedi in campo, legato a zona e data.' },
+    { id: 'fase_fenologica', title: 'Tenere conto della fase della coltura', hint: 'Germogliamento, fioritura, invaiatura: il rischio cambia con la fase.' },
+    { id: 'soglia_agronomo', title: 'Verificare una soglia indicata dall’agronomo', hint: 'Sapere se e quando potrebbe essere superata.' },
+    { id: 'zona_da_controllare', title: 'Programmare un sopralluogo', hint: 'Capire quale zona controllare per prima.' },
+    { id: 'confrontare_scenari', title: 'Confrontare condizioni e scenari', hint: 'Mettere a confronto zone, periodi e ipotesi diverse.' },
   ],
+};
+
+/** Decisioni delle versioni precedenti, ricondotte alla voce attuale più vicina. */
+const LEGACY_DECISIONS: Record<string, string> = {
+  motivare_proposta: 'scegliere_intervento',
+  verificare_risposta: 'confrontare_scenari',
 };
 
 /** Dati posseduti: elenchi separati per ambito (niente indicatori misti). */
@@ -79,7 +92,7 @@ export type WorkMode = 'guidata' | 'tecnica';
 
 export const MODE_LABEL: Record<WorkMode, { title: string; hint: string }> = {
   guidata: { title: 'Guidata', hint: 'Un passo alla volta, con suggerimenti. I dettagli tecnici si aprono su richiesta.' },
-  tecnica: { title: 'Tecnica', hint: 'Tutti i dettagli visibili: formule, versioni, hash e provenienza.' },
+  tecnica: { title: 'Tecnica', hint: 'Tutti i dettagli già aperti: provenienza, modelli, versioni e dati per la verifica.' },
 };
 
 export interface OnboardingPreferences {
@@ -166,7 +179,7 @@ export function parsePreferences(raw: unknown): OnboardingPreferences | null {
   const draft: OnboardingDraft = {
     profile: clean.profile as OperationalProfile,
     sector: clean.sector as Sector,
-    decision: clean.decision as string,
+    decision: typeof clean.decision === 'string' ? (LEGACY_DECISIONS[clean.decision] ?? clean.decision) : undefined,
     area: area && typeof area === 'object' ? area : undefined,
     data: Array.isArray(clean.data) ? (clean.data as string[]) : [],
     mode: clean.mode as WorkMode,
