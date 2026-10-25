@@ -75,7 +75,7 @@ P0 = Milestone 0 (integrità) · P1 = Milestone 1 (MVP pilota) · P2 = Milestone
 | ID | Elemento | F |
 |---|---|---|
 | B-140 | Tabelle weather_*, Edge Function open-meteo-ingest, pianificazione pg_cron, pannello “Dati meteorologici” — **fatto (Beta, test locali e smoke test Open-Meteo)** | F04 |
-| B-141 | Pubblicare migrazione 0007, funzione e job su Supabase di staging; eseguire W1–W8 di docs/14 | F04 |
+| B-141 | Pubblicare migrazione 0007, funzione e job su Supabase di staging; eseguire W1–W8 di docs/14 — **fatto il 25/10/2026 (staging: Edge Function, segreti, Vault, migrazione 0011, job ogni 3 ore; 22/22 controlli reali, `docs/reports/open-meteo-runtime-2026-10-25.md`)** | F04 |
 | B-142 | Import di misure da sensori in weather_observations (CSV/API) con QA (F05) | F04, F05 |
 | B-143 | Politica di conservazione a tempo per weather_forecast_points (oggi illimitata) | F04 |
 | B-144 | Backtest Open-Meteo vs osservazioni successive e uso come covariata nel backtest di Timestral | F31 |
@@ -98,6 +98,23 @@ P0 = Milestone 0 (integrità) · P1 = Milestone 1 (MVP pilota) · P2 = Milestone
 | B-156 | Soglie del pannello meteo per progetto, fissate dall’esperto (oggi dimostrative: 32 °C urbano, 0,16 m³/m³ suolo) | F04, F09, F13 |
 | B-157 | Annunci del grafico delle previsioni in parole semplici per gli screen reader nella modalità guidata (oggi “mediana”, quantili) | F29, F31 |
 | B-158 | Validazione con utenti reali (tecnico comunale, viticoltore, agronomo) del percorso guidato e del tempo al primo scenario | F01 |
+| B-159 | Menu nativo “Modello” nelle Previsioni a 320 px: il browser tronca il nome della voce selezionata (testo completo solo aprendo il menu) | F29 |
+| B-160 | Messaggio semplice quando si tenta di cancellare l’unico amministratore di un’organizzazione (oggi errore tecnico del database) | F26 |
+| B-161 | Stabilità del test lento della pagina Previsioni (tempi vicini al limite su macchine lente) | — |
+
+### Dopo il collegamento Open-Meteo → Supabase (25/10/2026)
+
+| ID | Elemento | F |
+|---|---|---|
+| B-162 | Calibrazione dei dati Open-Meteo con sensori locali (oggi dato territoriale modellato, cella di alcuni km) | F04, F05, F30 |
+| B-163 | Validazione scientifica delle soglie (caldo urbano, umidità del suolo, soglie per coltura) con tecnico comunale e agronomo | F09, F13, F31 |
+| B-164 | Timestral reale: servizio eseguito, pesi installati fuori da Git, backtest e decisione (vedi B-131–B-133); fino ad allora “modello avanzato non disponibile” | F31 |
+| B-165 | Proxy autenticato per Timestral (B-131) prima di qualunque collegamento dal sito pubblico | F31 |
+| B-166 | Politica di conservazione dei dati meteorologici (B-143): durata, aggregazione, cancellazione | F04, F25 |
+| B-167 | Decision Lab agricolo robusto a documenti incompleti dal server (un progetto senza fase fenologica blocca la pagina) | F28 |
+| B-168 | Tag `ux-audit-semplificata` pubblicato per errore su 4dfc7f7 invece che sul merge 0fb8ca9: correggerlo richiede di eliminare il tag remoto (decisione del responsabile) | — |
+| B-169 | Security Advisor: “leaked password protection” di Supabase Auth disattivata (avviso, piano a pagamento) | F26 |
+| B-170 | GitHub Pages risponde con stato HTTP 404 (pagina di fallback) alle route interne aperte direttamente: funzionano, ma compaiono come errori di rete in console | — |
 
 ## P2 — Milestone 2
 

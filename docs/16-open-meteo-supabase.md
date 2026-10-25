@@ -1,17 +1,18 @@
 # 16 — Acquisizione meteo Open-Meteo → Supabase (F04)
 
-> **Stato: Beta.** Implementato e testato in locale (dominio, database PGlite, logica
-> della Edge Function con fixture reali, interfaccia, E2E con Supabase simulato). Smoke test
-> **reale** verso Open-Meteo eseguito il 24/10/2026 (urbano e agricolo, risposta valida).
-> **Non eseguito su Supabase reale**: migrazione, Edge Function e job pianificato non sono
-> stati pubblicati (nessuna credenziale di staging disponibile). Vedi §10.
+> **Stato: Beta, attivo sullo staging dal 25/10/2026.** Edge Function pubblicata, segreti e
+> Vault configurati, migrazione 0011 con job ogni 3 ore, sito pubblico collegato con la
+> publishable key. Dati Open-Meteo **modellati**, non validati con utenti né calibrati con
+> sensori. Vedi §12.
 
 | Livello | Stato |
 | --- | --- |
-| Implementato | migrazione, Edge Function `open-meteo-ingest`, modello di pianificazione, pannello UI, adapter per Timestral |
-| Testato in locale | `openMeteoForecast.test.ts`, `supabase/tests/weather.test.ts`, `weatherPanel.test.tsx`, `weatherSource.test.ts`, `e2e/weather.spec.ts` |
-| Testato su servizio reale | solo Open-Meteo (`node scripts/open-meteo-smoke.mjs`); **non** Supabase |
-| Validato con utenti / scientificamente | no |
+| Implementato | migrazioni 0007 e 0011, Edge Function `open-meteo-ingest`, job pg_cron, pannello UI, collegamento del sito con la publishable key, adapter per Timestral (non attivo) |
+| Testato in locale | `openMeteoForecast.test.ts`, `supabase/tests/weather.test.ts`, `supabase/tests/schedule0011.test.ts`, `weatherPanel.test.tsx`, `weatherSource.test.ts`, `e2e/weather.spec.ts`, `e2e/header-mobile.spec.ts` |
+| Testato su servizio reale | Open-Meteo + Supabase di staging: 22/22 controlli (`scripts/supabase-real/open-meteo-runtime.mjs`, report `docs/reports/open-meteo-runtime-2026-10-25.md`); interfaccia collegata allo staging su build locale (ruoli, isolamento, acquisizione dalla pagina, responsive) |
+| Pubblicato | Edge Function e job sullo staging; sito GitHub Pages collegato allo staging |
+| Simulato | E2E dell’interfaccia con Supabase simulato; errore di acquisizione simulato sul database reale |
+| Validato con utenti / scientificamente | no (B-158, B-162, B-163) |
 
 ## 1. Flusso dei dati
 
@@ -48,6 +49,8 @@ acquisizioni e osservazioni.
 
 - **Pianificata:** intestazione `x-cron-secret` = `OPEN_METEO_CRON_SECRET`; body `{"all_active": true}` o `{"location_id": …}`.
 - **Manuale:** token dell'utente; `weather_authorize_manual` verifica ruolo e frequenza; poi il service role registra.
+- **Controllo di salute:** `GET` → `{"servizio":"open-meteo-ingest","stato":"attivo"}`, senza dati né configurazione.
+- Pubblicata con `--no-verify-jwt` (il job non ha un token utente): l'autenticazione è nella funzione — segreto del job confrontato a tempo costante, oppure token dell'utente verificato dal database (PostgREST) dentro `weather_authorize_manual`. Senza credenziali → 401; chiave pubblica o token contraffatto → 403.
 - Legge coordinate e ambito dal database, rifiuta coordinate non valide (anche 0,0), chiama
   `https://api.open-meteo.com/v1/forecast` con `timezone=Europe/Rome`, `timeformat=unixtime`
   (istanti assoluti, nessuna ambiguità al cambio d'ora), `wind_speed_unit=ms`, `forecast_days=4`,
@@ -64,17 +67,20 @@ Segreti (mai nel repository): `SUPABASE_SERVICE_ROLE_KEY` (fornito da Supabase a
 
 ## 4. Frequenza e pianificazione
 
-Modello `supabase/sql/schedule-open-meteo-ingest.sql`: `pg_cron` ogni 3 ore al minuto 7
-(`7 */3 * * *`), `pg_net` con URL e segreto letti dal **Vault** (`open_meteo_ingest_url`,
-`open_meteo_cron_secret`). Mai ogni minuto. Aggiornamento manuale: al massimo una volta ogni
-10 minuti per località (server) e ogni ora produce una sola emissione (idempotenza).
+Migrazione `20261025000011_open_meteo_schedule.sql`: `pg_cron` ogni 3 ore (`0 */3 * * *`, UTC),
+`pg_net` con URL e segreto letti dal **Vault** per nome (`open_meteo_ingest_url`,
+`open_meteo_cron_secret`) a ogni esecuzione; senza i due valori il job non chiama nulla. Job unico
+(`mdt-open-meteo-ingest`, sostituito se esiste). Nessun segreto né URL nel file. Mai ogni minuto.
+Aggiornamento manuale: al massimo una volta ogni 10 minuti per località (server) e ogni ora
+produce una sola emissione (idempotenza). Guida di gestione: `supabase/sql/schedule-open-meteo-ingest.sql`.
 
 | Operazione | Comando |
 | --- | --- |
+| Stato (solo service role) | `select public.weather_schedule_status();` |
 | Disabilitare | `select cron.unschedule('mdt-open-meteo-ingest');` |
 | Sospendere / riattivare | `update cron.job set active = false|true where jobname = 'mdt-open-meteo-ingest';` |
-| Rieseguire ora | la `net.http_post` del modello, a mano nell'SQL editor |
-| Monitorare | `cron.job_run_details`, `net._http_response`, `weather_fetch_runs` (query nel modello) |
+| Rieseguire ora (stesso meccanismo) | `do $$ begin execute (select command from cron.job where jobname = 'mdt-open-meteo-ingest'); end $$;` |
+| Monitorare | `cron.job_run_details`, `net._http_response`, `weather_fetch_runs` (query nella guida) |
 | Escludere una località | `update weather_locations set active = false where id = …;` |
 
 ## 5. Variabili e unità
@@ -168,3 +174,22 @@ Soluzioni possibili, da decidere:
 3. Accettare temporaneamente il rischio sullo staging (nessun dato reale) e risolvere prima della produzione.
 
 **Aggiornamento 25/10/2026:** con la migrazione 0009 PostGIS è nello schema `extensions`. Il Security Advisor non segnala più errori (0 ERROR, 12 WARN voluti); i problemi su `spatial_ref_sys` e `st_estimatedextent` sono risolti. I test reali hanno però rivelato tre difetti preesistenti (conflitto di versione con SQLSTATE 40001 → HTTP 504 via PostgREST; organizzazioni non eliminabili; utenti proprietari di progetti non eliminabili), descritti nel report della 0009 e da correggere con una nuova migrazione.
+
+## 12. Attivazione sullo staging (25/10/2026)
+
+| Passo | Stato |
+| --- | --- |
+| Verifiche preliminari | migrazioni 0001–0010 allineate; database senza utenti, organizzazioni, progetti, località; Security Advisor 0 errori; controllo anonimo 47/47; istantanea logica (catalogo, conteggi, dati) fuori dal repository |
+| Edge Function | `open-meteo-ingest` versione 1, `verify_jwt: false`; health 200; senza credenziali 401; segreto errato 401; chiave pubblica 403; token contraffatto 403; CORS solo `https://manocchio91.github.io` |
+| Segreti | `OPEN_METEO_CRON_SECRET` nuovo (casuale, 64 caratteri) nei Supabase Secrets e nel Vault; `ALLOWED_ORIGIN`; URL della funzione nel Vault. Nessun valore nel repository o nei log |
+| Acquisizioni reali | urbano (Campobasso) e agricolo (Molise): 79 ore ciascuno, cella 41,5861/14,6614 a 700 m e 41,8036/14,9055 a 427 m; tutte le variabili presenti e plausibili, unità corrette; ET0, VPD, temperatura e umidità del suolo a tutte le profondità per l’agricolo |
+| Idempotenza e limiti | stessa ora → `gia_acquisita`, nessun duplicato; secondo aggiornamento manuale entro 10 minuti → 429; località inattiva esclusa (409 se richiesta) |
+| Permessi | lettore 403 sull’aggiornamento; altra organizzazione 404 e 0 righe; nessun client scrive dati `open_meteo`; previsioni immutabili; errore simulato senza perdita dei dati validi; nessuna previsione Timestral |
+| Job | migrazione 0011 applicata: un job attivo `0 */3 * * *` (UTC), comando con valori dal Vault e senza URL; invocazione controllata con lo stesso comando → HTTP 200, località attive già acquisite, nessun duplicato |
+| Auth | Site URL `https://manocchio91.github.io/dt.github.io/`, redirect `https://manocchio91.github.io/dt.github.io/**` (unica modifica alla configurazione) |
+| Sito | GitHub Actions con `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` (variabili pubbliche); controllo del bundle che blocca la pubblicazione se compare una chiave segreta |
+
+Dati temporanei della verifica: prefisso `MDT_RUNTIME_TEST_<timestamp>`, creati con le procedure
+normali ed eliminati con `delete_organization` e Auth Admin, con rilettura dei conteggi.
+Rischi residui: dato territoriale modellato (non sensore), soglie dimostrative, nessuna
+validazione con utenti, Timestral non attivo, conservazione dei dati senza scadenza (B-162–B-166).
