@@ -46,6 +46,9 @@ test('lettura: dati Open-Meteo con fonte, cella, timestamp e avviso; nessun aggi
 
 test('tastiera: orizzonte 24/72 con Tab e Invio, tabella scorrevole raggiungibile', async ({ page }) => {
   await loginAndOpen(page, /Comune A.*lettura/);
+  // in modalità guidata i valori ora per ora si aprono su richiesta, anche da tastiera
+  await page.getByText('Tutti i valori ora per ora').focus();
+  await page.keyboard.press('Enter');
   await page.getByRole('button', { name: '24 ore' }).focus();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: '72 ore' })).toBeFocused();
@@ -85,6 +88,6 @@ test('ospite (GitHub Pages senza Supabase): archivio meteo non collegato, nessun
   await page.goto(LOCAL + '/');
   await page.getByRole('button', { name: 'Apri la demo agricola' }).click();
   await expect(page).toHaveURL(/\/agricolo$/);
-  await expect(page.getByText('Archivio meteo non collegato')).toBeVisible();
+  await expect(page.getByText('Dati meteo non ancora collegati.')).toBeVisible();
   await expect(page.getByTestId('weather-panel').locator('[data-source]')).toHaveCount(4);
 });

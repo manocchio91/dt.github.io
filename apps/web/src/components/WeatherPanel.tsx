@@ -17,8 +17,13 @@ import {
 import { Alert } from './ui';
 import { formatNumber } from './DataBadge';
 import { SourceBadge } from './SourceBadge';
+import { useWorkMode } from '../state/preferences';
+import { LEVEL_LABEL, summarizeWeather, type WeatherSummary } from '../state/weatherSummary';
 
-export const MODELLED_NOTICE = 'Dato territoriale modellato, non rilevato da sensore locale';
+export const MODELLED_NOTICE = 'Dato territoriale modellato, non rilevato da sensore locale.';
+export const NOT_CONNECTED = { title: 'Dati meteo non ancora collegati.', text: 'Puoi continuare usando la modalità dimostrativa.' };
+
+const VARIABLE_UNITS = 'temperatura °C · umidità % · precipitazioni mm · vento m/s · radiazione W/m² · ET0 mm · VPD kPa · umidità del suolo m³/m³';
 
 const COMMON_COLS = ['temperature_2m', 'apparent_temperature', 'relative_humidity_2m', 'precipitation', 'precipitation_probability', 'wind_speed_10m', 'wind_gusts_10m', 'shortwave_radiation'];
 const AGRI_COLS = ['temperature_2m', 'relative_humidity_2m', 'precipitation', 'et0_fao_evapotranspiration', 'vapour_pressure_deficit', 'soil_temperature_6cm', 'soil_moisture_9_to_27cm'];
@@ -56,6 +61,7 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
   const { client, session, current } = useAuth();
   const { kind } = useStore();
   const { canEdit } = usePermissions();
+  const technical = useWorkMode() === 'tecnica';
   const online = useOnline();
   const agri = bundle.project.sector === 'agriculture';
   const [snap, setSnap] = useState<WeatherSnapshot | null>(null);
@@ -111,9 +117,13 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
         <h2 id="meteo-h" className="h-section">
           Dati meteorologici
         </h2>
-        <Alert tone="info" title="Archivio meteo non collegato">
-          <p>I dati meteorologici ufficiali sono acquisiti dal server (Open-Meteo → Supabase, ogni 3 ore) e si consultano accedendo a un’organizzazione. In questo browser non viene eseguita alcuna acquisizione.</p>
+        <Alert tone="info" title={NOT_CONNECTED.title}>
+          <p>{NOT_CONNECTED.text}</p>
         </Alert>
+        <details className="text-sm" open={technical}>
+          <summary className="cursor-pointer font-semibold text-petrol-700">Perché?</summary>
+          <p className="mt-1">I dati meteorologici ufficiali sono acquisiti dal server (Open-Meteo → archivio dell’organizzazione, ogni 3 ore) e si consultano accedendo a un’organizzazione. In questo browser non viene eseguita alcuna acquisizione.</p>
+        </details>
         <Legend />
       </section>
     );
@@ -129,6 +139,7 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
   const cooldownUntil = Math.max(localCooldownUntil, snap?.lastManualAt ? Date.parse(snap.lastManualAt) + MANUAL_COOLDOWN_MS : 0);
   const coolingDown = cooldownUntil > t.getTime();
   const lastFailed = snap?.lastAttempt?.status === 'errore' ? snap.lastAttempt : null;
+  const summary = snap && run ? summarizeWeather(snap.points, agri ? 'agriculture' : 'urban', t, { heatThresholdC: bundle.agri?.setup.heatThresholdC }) : null;
 
   const refresh = async () => {
     if (!client || !snap) return;
@@ -172,9 +183,12 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
   return (
     <section aria-labelledby="meteo-h" className="card space-y-3" data-testid="weather-panel" aria-busy={status.kind === 'loading'}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="meteo-h" className="h-section flex flex-wrap items-center gap-2">
-          Dati meteorologici <SourceBadge kind="OPEN_METEO" />
-        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 id="meteo-h" className="h-section">
+            Dati meteorologici
+          </h2>
+          <SourceBadge kind="OPEN_METEO" />
+        </div>
         {canEdit && snap && (
           <div className="flex flex-col items-end gap-1">
             <button type="button" className="btn-secondary" onClick={refresh} disabled={busy || coolingDown || !online} aria-describedby="meteo-cooldown">
@@ -197,12 +211,20 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
           <p>{snap ? 'Mostrati gli ultimi dati scaricati in questo browser.' : 'Dati non disponibili finché la rete non torna.'}</p>
         </Alert>
       )}
-      {status.kind === 'error' && <Alert tone="error" title="Dati meteorologici non disponibili">{status.message}</Alert>}
+      {status.kind === 'error' && (
+        <Alert tone="error" title="Dati meteo non disponibili in questo momento">
+          <p>{snap ? 'Restano visibili gli ultimi dati validi.' : 'Puoi continuare con gli altri indicatori e riprovare più tardi.'}</p>
+          <details className="mt-1 text-xs" open={technical}>
+            <summary className="cursor-pointer font-semibold">Dettagli tecnici</summary>
+            <p>{status.message}</p>
+          </details>
+        </Alert>
+      )}
       {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
 
       {noLocation && (
         <div className="space-y-2 text-sm">
-          <p>Nessun punto di acquisizione per questo progetto: il job pianificato non ha ancora dati da raccogliere.</p>
+          <p>Nessun punto di acquisizione per questo progetto: l’acquisizione automatica non ha ancora un luogo da seguire.</p>
           {canEdit && bundle.area && (
             <button type="button" className="btn-secondary" onClick={createHere}>
               Crea punto di acquisizione nel baricentro dell’area
@@ -211,120 +233,137 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
         </div>
       )}
 
-      {snap && !run && <p className="text-sm">Punto “{snap.location.name}” registrato: nessuna acquisizione completata finora. Il job pianificato gira ogni 3 ore.</p>}
+      {snap && !run && <p className="text-sm">Punto “{snap.location.name}” registrato: nessuna acquisizione completata finora. L’acquisizione automatica avviene ogni 3 ore.</p>}
 
       {snap && run && (
         <>
           {stale && (
             <Alert tone="warn" title="Dato non aggiornato">
-              <p>Ultima emissione {fmtTime(run.issued_at!)}: più vecchia di 6 ore. Verificare il job pianificato.</p>
+              <p>Ultima emissione {fmtTime(run.issued_at!)}: più vecchia di 6 ore. Verificare l’acquisizione pianificata.</p>
             </Alert>
           )}
           {lastFailed && (
             <Alert tone="warn" title="Ultimo tentativo non riuscito">
               <p>
-                {fmtTime(lastFailed.requested_at)} — {lastFailed.error_code ?? 'errore'}. Mostrati gli ultimi dati validi.
+                {fmtTime(lastFailed.requested_at)} — {technical ? (lastFailed.error_code ?? 'errore') : 'aggiornamento non riuscito'}. Mostrati gli ultimi dati validi.
               </p>
             </Alert>
           )}
-          <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[12rem_1fr]" data-testid="weather-meta">
-            <dt className="font-semibold text-sand-600">Ultimo aggiornamento</dt>
-            <dd>
-              {fmtTime(run.completed_at ?? run.requested_at)} (emissione {fmtTime(run.issued_at!)}, {run.trigger === 'manuale' ? 'aggiornamento manuale' : 'acquisizione pianificata'})
-            </dd>
-            <dt className="font-semibold text-sand-600">Fonte</dt>
-            <dd>Open-Meteo Forecast API</dd>
-            <dt className="font-semibold text-sand-600">Modello</dt>
-            <dd>{run.model_returned ?? `${run.model_requested} (modello effettivo non dichiarato dalla risposta)`}</dd>
-            <dt className="font-semibold text-sand-600">Cella del modello</dt>
-            <dd>
-              {run.response_grid_latitude?.toFixed(4)}, {run.response_grid_longitude?.toFixed(4)} — quota {run.response_elevation ?? 'n.d.'} m (punto richiesto {snap.location.latitude.toFixed(4)}, {snap.location.longitude.toFixed(4)})
-            </dd>
-            <dt className="font-semibold text-sand-600">Validità</dt>
-            <dd>
-              {run.valid_from && fmtTime(run.valid_from)} → {run.valid_to && fmtTime(run.valid_to)}
-            </dd>
-          </dl>
+          {summary && <SummaryCard summary={summary} updatedAt={run.completed_at ?? run.requested_at} />}
 
-          {nowPoint && (
-            <div>
-              <h3 className="text-sm font-bold">Ora {fmtHour(nowPoint.valid_at)}</h3>
-              <ul className="mt-1 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3 lg:grid-cols-4" data-testid="weather-now">
-                {[
-                  'temperature_2m',
-                  'apparent_temperature',
-                  'relative_humidity_2m',
-                  'precipitation',
-                  'wind_speed_10m',
-                  'shortwave_radiation',
-                  ...(agri ? ['et0_fao_evapotranspiration', 'vapour_pressure_deficit', 'soil_temperature_6cm', 'soil_moisture_9_to_27cm'] : []),
-                ].map((v) => (
-                  <li key={v} className="rounded border border-sand-200 p-2">
-                    <span className="block text-xs text-sand-600">{WEATHER_LABEL[v]}</span>
-                    <span className="font-bold tabular-nums">{value(nowPoint, v)}</span>
-                    {v === 'precipitation' && typeof nowPoint.precipitation_probability === 'number' && <span className="block text-xs">probabilità {value(nowPoint, 'precipitation_probability')}</span>}
-                    {v === 'wind_speed_10m' && typeof nowPoint.wind_direction_10m === 'number' && <span className="block text-xs">da {value(nowPoint, 'wind_direction_10m')}, raffiche {value(nowPoint, 'wind_gusts_10m')}</span>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <details className="rounded border border-sand-200 p-2 text-sm" open={technical} data-testid="weather-source-details">
+            <summary className="cursor-pointer font-semibold text-petrol-700">Dettagli della fonte</summary>
+            <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[12rem_1fr]" data-testid="weather-meta">
+              <dt className="font-semibold text-sand-600">Ultimo aggiornamento</dt>
+              <dd>
+                {fmtTime(run.completed_at ?? run.requested_at)} (emissione {fmtTime(run.issued_at!)}, {run.trigger === 'manuale' ? 'aggiornamento manuale' : 'acquisizione pianificata'})
+              </dd>
+              <dt className="font-semibold text-sand-600">Fonte</dt>
+              <dd>Open-Meteo Forecast API</dd>
+              <dt className="font-semibold text-sand-600">Modello</dt>
+              <dd>{run.model_returned ?? `${run.model_requested} (modello effettivo non dichiarato dalla risposta)`}</dd>
+              <dt className="font-semibold text-sand-600">Cella del modello</dt>
+              <dd>
+                {run.response_grid_latitude?.toFixed(4)}, {run.response_grid_longitude?.toFixed(4)} — quota {run.response_elevation ?? 'n.d.'} m (punto richiesto {snap.location.latitude.toFixed(4)}, {snap.location.longitude.toFixed(4)})
+              </dd>
+              <dt className="font-semibold text-sand-600">Intervallo temporale</dt>
+              <dd>
+                {run.valid_from && fmtTime(run.valid_from)} → {run.valid_to && fmtTime(run.valid_to)}
+              </dd>
+              <dt className="font-semibold text-sand-600">Variabili e unità</dt>
+              <dd>{VARIABLE_UNITS}</dd>
+              <dt className="font-semibold text-sand-600">Limiti spaziali</dt>
+              <dd>Valore medio di una cella di griglia di alcuni chilometri: non descrive differenze tra una via e l’altra o tra una parcella e l’altra.</dd>
+              <dt className="font-semibold text-sand-600">Licenza e attribuzione</dt>
+              <dd>{OM_ATTRIBUTION}</dd>
+            </dl>
+          </details>
 
-          {agri && nowPoint && (
-            <details className="rounded border border-sand-200 p-2 text-sm">
-              <summary className="cursor-pointer font-semibold">Suolo a tutte le profondità disponibili</summary>
-              <table className="table-base mt-2">
-                <caption className="sr-only">Temperatura e umidità del suolo per profondità</caption>
-                <tbody>
-                  {SOIL_ROWS.map((v) => (
-                    <tr key={v}>
-                      <th scope="row">{WEATHER_LABEL[v]}</th>
-                      <td className="tabular-nums">{value(nowPoint, v)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </details>
-          )}
+          <details className="rounded border border-sand-200 p-2 text-sm" open={technical} data-testid="weather-values-details">
+            <summary className="cursor-pointer font-semibold text-petrol-700">Tutti i valori ora per ora</summary>
+            <div className="mt-2 space-y-3">
 
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Orizzonte della previsione oraria">
-            <span className="text-sm font-semibold">Previsione oraria:</span>
-            {([24, 72] as const).map((h) => (
-              <button key={h} type="button" className={h === horizon ? 'btn-primary' : 'btn-secondary'} aria-pressed={h === horizon} onClick={() => setHorizon(h)}>
-                {h} ore
-              </button>
-            ))}
-          </div>
-          <div className="max-h-96 overflow-auto rounded border border-sand-200" tabIndex={0} role="region" aria-label={`Tabella oraria delle prossime ${horizon} ore`}>
-            <table className="table-base text-sm" data-testid="weather-hourly">
-              <caption className="sr-only">Previsione Open-Meteo ora per ora, prossime {horizon} ore</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Ora (Europe/Rome)</th>
-                  {cols.map((c) => (
-                    <th key={c} scope="col">
-                      {WEATHER_LABEL[c]}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((p) => (
-                  <tr key={p.valid_at}>
-                    <th scope="row" className="font-normal whitespace-nowrap">
-                      {fmtHour(p.valid_at)}
-                    </th>
-                    {cols.map((c) => (
-                      <td key={c} className="tabular-nums whitespace-nowrap">
-                        {value(p, c)}
-                      </td>
+              {nowPoint && (
+                <div>
+                  <h3 className="text-sm font-bold">Ora {fmtHour(nowPoint.valid_at)}</h3>
+                  <ul className="mt-1 grid grid-cols-2 gap-2 text-sm sm:grid-cols-3 lg:grid-cols-4" data-testid="weather-now">
+                    {[
+                      'temperature_2m',
+                      'apparent_temperature',
+                      'relative_humidity_2m',
+                      'precipitation',
+                      'wind_speed_10m',
+                      'shortwave_radiation',
+                      ...(agri ? ['et0_fao_evapotranspiration', 'vapour_pressure_deficit', 'soil_temperature_6cm', 'soil_moisture_9_to_27cm'] : []),
+                    ].map((v) => (
+                      <li key={v} className="rounded border border-sand-200 p-2">
+                        <span className="block text-xs text-sand-600">{WEATHER_LABEL[v]}</span>
+                        <span className="font-bold tabular-nums">{value(nowPoint, v)}</span>
+                        {v === 'precipitation' && typeof nowPoint.precipitation_probability === 'number' && <span className="block text-xs">probabilità {value(nowPoint, 'precipitation_probability')}</span>}
+                        {v === 'wind_speed_10m' && typeof nowPoint.wind_direction_10m === 'number' && <span className="block text-xs">da {value(nowPoint, 'wind_direction_10m')}, raffiche {value(nowPoint, 'wind_gusts_10m')}</span>}
+                      </li>
                     ))}
-                  </tr>
+                  </ul>
+                </div>
+              )}
+
+              {agri && nowPoint && (
+                <details className="rounded border border-sand-200 p-2 text-sm">
+                  <summary className="cursor-pointer font-semibold">Suolo a tutte le profondità disponibili</summary>
+                  <table className="table-base mt-2">
+                    <caption className="sr-only">Temperatura e umidità del suolo per profondità</caption>
+                    <tbody>
+                      {SOIL_ROWS.map((v) => (
+                        <tr key={v}>
+                          <th scope="row">{WEATHER_LABEL[v]}</th>
+                          <td className="tabular-nums">{value(nowPoint, v)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </details>
+              )}
+
+              <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Orizzonte della previsione oraria">
+                <span className="text-sm font-semibold">Previsione oraria:</span>
+                {([24, 72] as const).map((h) => (
+                  <button key={h} type="button" className={h === horizon ? 'btn-primary' : 'btn-secondary'} aria-pressed={h === horizon} onClick={() => setHorizon(h)}>
+                    {h} ore
+                  </button>
                 ))}
-              </tbody>
-            </table>
-          </div>
-          {shown.length < horizon && <p className="text-xs text-sand-600">Disponibili {shown.length} ore su {horizon} richieste.</p>}
+              </div>
+              <div className="max-h-96 overflow-auto rounded border border-sand-200" tabIndex={0} role="region" aria-label={`Tabella oraria delle prossime ${horizon} ore`}>
+                <table className="table-base text-sm" data-testid="weather-hourly">
+                  <caption className="sr-only">Previsione Open-Meteo ora per ora, prossime {horizon} ore</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Ora (Europe/Rome)</th>
+                      {cols.map((c) => (
+                        <th key={c} scope="col">
+                          {WEATHER_LABEL[c]}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shown.map((p) => (
+                      <tr key={p.valid_at}>
+                        <th scope="row" className="font-normal whitespace-nowrap">
+                          {fmtHour(p.valid_at)}
+                        </th>
+                        {cols.map((c) => (
+                          <td key={c} className="tabular-nums whitespace-nowrap">
+                            {value(p, c)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {shown.length < horizon && <p className="text-xs text-sand-600">Disponibili {shown.length} ore su {horizon} richieste.</p>}
+            </div>
+          </details>
         </>
       )}
 
@@ -344,8 +383,45 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
       )}
 
       <Legend />
-      <p className="text-xs text-sand-600">{OM_ATTRIBUTION}</p>
     </section>
+  );
+}
+
+function SummaryCard({ summary, updatedAt }: { summary: WeatherSummary; updatedAt: string }) {
+  const l = LEVEL_LABEL[summary.level];
+  return (
+    <div className="space-y-2 rounded-lg border border-sand-200 p-3" data-testid="weather-summary">
+      <p className="flex flex-wrap items-center gap-2">
+        <span className={`inline-flex items-center gap-1 rounded border-2 px-2 py-0.5 text-sm font-bold ${l.cls}`} data-testid="weather-level">
+          <span aria-hidden="true">{l.symbol}</span>
+          Stato: {l.text}
+        </span>
+        <span className="font-semibold">{summary.headline}</span>
+      </p>
+      <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[12rem_1fr]">
+        <dt className="font-semibold text-sand-600">{WEATHER_LABEL[summary.variable]} ora</dt>
+        <dd className="tabular-nums">{summary.current === null ? 'n.d.' : formatNumber(summary.current, summary.unit)}</dd>
+        <dt className="font-semibold text-sand-600">Soglia</dt>
+        <dd>
+          {summary.threshold.direction} {formatNumber(summary.threshold.value, summary.unit)} — dimostrativa, da confermare ({summary.threshold.who})
+        </dd>
+        {summary.window && (
+          <>
+            <dt className="font-semibold text-sand-600">Quando</dt>
+            <dd>
+              {fmtHour(summary.window.from)} → {fmtHour(summary.window.to)}
+            </dd>
+          </>
+        )}
+        <dt className="font-semibold text-sand-600">Ultimo aggiornamento</dt>
+        <dd>{fmtTime(updatedAt)}</dd>
+        <dt className="font-semibold text-sand-600">Fonte</dt>
+        <dd>Open-Meteo, previsione da modello meteorologico</dd>
+      </dl>
+      <p className="rounded bg-petrol-100 p-2 text-sm text-petrol-900">
+        <strong>Prossimo passo:</strong> {summary.nextStep}
+      </p>
+    </div>
   );
 }
 

@@ -98,7 +98,8 @@ describe('Pannello “Dati meteorologici”', () => {
   it('senza archivio Supabase: nessuna acquisizione dal browser, stato dichiarato', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     renderApp(<WeatherPanel bundle={urban} />, { repo: localRepo([urban]) });
-    expect(await screen.findByText('Archivio meteo non collegato')).toBeTruthy();
+    expect(await screen.findByText('Dati meteo non ancora collegati.')).toBeTruthy();
+    expect(screen.getByText('Puoi continuare usando la modalità dimostrativa.')).toBeTruthy();
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
@@ -110,7 +111,7 @@ describe('Pannello “Dati meteorologici”', () => {
     expect(meta.getByText(/best_match \(modello effettivo non dichiarato dalla risposta\)/)).toBeTruthy();
     expect(meta.getByText(/41,5861|41\.5861/)).toBeTruthy();
     expect(screen.getByText(MODELLED_NOTICE)).toBeTruthy();
-    expect(MODELLED_NOTICE).toBe('Dato territoriale modellato, non rilevato da sensore locale');
+    expect(MODELLED_NOTICE).toBe('Dato territoriale modellato, non rilevato da sensore locale.');
     const now = within(screen.getByTestId('weather-now'));
     for (const l of ['Temperatura aria (2 m)', 'Temperatura percepita', 'Umidità relativa', 'Precipitazioni', 'Vento (10 m)', 'Radiazione solare']) expect(now.getByText(l)).toBeTruthy();
     expect(now.queryByText('ET0 (FAO)')).toBeNull();
@@ -124,7 +125,7 @@ describe('Pannello “Dati meteorologici”', () => {
     await screen.findByTestId('weather-meta');
     const panel = screen.getByTestId('weather-panel');
     expect(panel.querySelector('[data-source=OPEN_METEO]')!.textContent).toMatch(/DATO OPEN-METEO/);
-    expect(within(screen.getByTestId('weather-sensors')).getByText(/DATO DA SENSORE/)).toBeTruthy();
+    expect(within(screen.getByTestId('weather-sensors')).getByText(/MISURATO DA SENSORE/)).toBeTruthy();
     const kinds = [...panel.querySelectorAll('[data-source]')].map((e) => e.getAttribute('data-source'));
     expect(new Set(kinds)).toEqual(new Set(['OPEN_METEO', 'SENSORE', 'STIMATO_DA_MODELLO', 'SIMULATO']));
     expect(panel.textContent).not.toMatch(/Timestral/);
@@ -160,7 +161,8 @@ describe('Pannello “Dati meteorologici”', () => {
     open(urban);
     expect(await screen.findByText('Dato non aggiornato')).toBeTruthy();
     expect(screen.getByText('Ultimo tentativo non riuscito')).toBeTruthy();
-    expect(screen.getByText(/TIMEOUT\. Mostrati gli ultimi dati validi/)).toBeTruthy();
+    expect(screen.getByText(/aggiornamento non riuscito\. Mostrati gli ultimi dati validi/)).toBeTruthy();
+    expect(screen.queryByText(/TIMEOUT/)).toBeNull(); // il codice tecnico resta alla modalità tecnica
     expect(screen.getByTestId('weather-hourly')).toBeTruthy();
   });
 
