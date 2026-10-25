@@ -10,7 +10,8 @@
  *   SUPABASE_ANON_KEY            chiave anon pubblica
  *   SUPABASE_SERVICE_ROLE_KEY    solo per creare/eliminare gli utenti di prova e per pulizia
  *   MDT_CONFIRM_TEST_PROJECT=yes conferma esplicita che il progetto NON è di produzione
- * Opzioni: --slow (attende la scadenza reale degli URL firmati, 65 s), --keep (non ripulisce)
+ * Opzioni: --slow (attende la scadenza reale degli URL firmati, 65 s), --keep (non ripulisce),
+ *          --senza-funzioni (salta i casi M che richiedono la Edge Function media-gateway non ancora pubblicata)
  *
  * Uso:  node --env-file=.env.supabase-test scripts/supabase-real/verify.mjs
  */
@@ -23,6 +24,7 @@ import { stripMetadata } from '../../packages/domain/src/media/files.ts';
 const { SUPABASE_URL: URL_, SUPABASE_ANON_KEY: ANON, SUPABASE_SERVICE_ROLE_KEY: SERVICE, MDT_CONFIRM_TEST_PROJECT } = process.env;
 const SLOW = process.argv.includes('--slow');
 const KEEP = process.argv.includes('--keep');
+const NO_FUNCTIONS = process.argv.includes('--senza-funzioni');
 
 if (!URL_ || !ANON || !SERVICE) {
   console.error('Mancano SUPABASE_URL, SUPABASE_ANON_KEY o SUPABASE_SERVICE_ROLE_KEY (usa un file .env locale escluso da Git).');
@@ -45,6 +47,7 @@ function record(id, title, status, evidence = '') {
   console.log(`${status === 'ok' ? '✔' : status === 'ko' ? '✖' : '·'} ${id} ${title}${evidence ? ` — ${evidence}` : ''}`);
 }
 async function check(id, title, fn) {
+  if (NO_FUNCTIONS && id.startsWith('M')) return record(id, title, 'skip', 'richiede la Edge Function media-gateway (non pubblicata)');
   try {
     const ev = await fn();
     record(id, title, 'ok', ev ?? '');
@@ -172,10 +175,18 @@ await check('S4', 'Isolamento: l’esterno non vede progetti né documenti', asy
 await check('S5', 'Concorrenza: il secondo salvataggio riceve conflitto', async () => {
   const v2 = await E.client.rpc('save_project', { p_organization_id: orgA, p_bundle: { ...proj, audit: [...proj.audit, { at: new Date().toISOString(), action: 'x', detail: 'x' }] }, p_bundle_hash: 'h', p_expected_version: 1 });
   expect(!v2.error, v2.error?.message);
+  const t0 = Date.now();
   const stale = await E.client.rpc('save_project', { p_organization_id: orgA, p_bundle: proj, p_bundle_hash: 'h', p_expected_version: 1 });
-  expect(stale.error?.code === '40001', `atteso 40001, ricevuto ${stale.error?.code}`);
+  const ms = Date.now() - t0;
+  expect(stale.status === 409 && stale.error?.code === 'PT409', `atteso HTTP 409 PT409, ricevuto codice=${stale.error?.code} HTTP=${stale.status} messaggio=${String(stale.error?.message ?? '').slice(0, 120)}`);
+  expect(stale.error?.hint === 'MDT_CONFLITTO_VERSIONE', `hint inatteso: ${stale.error?.hint}`);
+  expect(ms < 5000, `risposta lenta: ${ms} ms (possibile nuovo tentativo)`);
+  const d = JSON.parse(stale.error?.details ?? '{}');
+  expect(d.versione_attesa === 1 && d.versione_trovata === 2, `dettagli inattesi: ${stale.error?.details}`);
+  const doc = await admin.from('project_documents').select('version').eq('project_id', proj.project.id).maybeSingle();
+  expect(doc.data?.version === 2, `il conflitto ha modificato i dati: versione ${doc.data?.version}`);
   proj.audit.push({ at: new Date().toISOString(), action: 'x', detail: 'x' });
-  return '40001';
+  return `HTTP 409 PT409 in ${ms} ms, dati invariati (versione 2)`;
 });
 
 await check('S6', 'Baseline immutabile', async () => {
@@ -465,6 +476,54 @@ if (wStatus === 404 || wStatus === 0) {
 }
 record('W6', 'Meteo: job pg_cron ogni 3 ore', 'skip', 'manuale: verificare cron.job_run_details e una nuova emissione dopo 3 ore (docs/16)');
 
+// ------------------------------------------------------------ L: organizzazioni e utenti (migrazione 0010)
+await check('L1', 'Ultimo amministratore: rimozione negata in un’organizzazione esistente', async () => {
+  const del = await A.client.from('memberships').delete().eq('organization_id', orgA).eq('user_id', A.id).select('user_id');
+  const still = await admin.from('memberships').select('user_id').eq('organization_id', orgA).eq('role', 'admin');
+  expect(!!del.error && (still.data ?? []).length === 1, `rimozione non negata: ${del.error?.message ?? 'nessun errore'}`);
+  const demote = await A.client.from('memberships').update({ role: 'editor' }).eq('organization_id', orgA).eq('user_id', A.id);
+  expect(!!demote.error, 'declassamento dell’ultimo amministratore accettato');
+  return del.error.message;
+});
+
+await check('L2', 'Eliminazione completa di un’organizzazione temporanea (amministratore, conferma del nome)', async () => {
+  const name = `MDT test ${run} C`;
+  const c = await O.client.rpc('create_organization', { p_name: name });
+  expect(!c.error, c.error?.message);
+  created.orgs.push(c.data);
+  const wrong = await O.client.rpc('delete_organization', { p_org: c.data, p_confirm_name: 'nome sbagliato' });
+  expect(!!wrong.error, 'eliminazione senza conferma corretta accettata');
+  const byOther = await E.client.rpc('delete_organization', { p_org: c.data, p_confirm_name: name });
+  expect(!!byOther.error, 'eliminazione da un non amministratore accettata');
+  const ok = await O.client.rpc('delete_organization', { p_org: c.data, p_confirm_name: name });
+  expect(!ok.error, ok.error?.message);
+  const left = await admin.from('organizations').select('id').eq('id', c.data);
+  const members = await admin.from('memberships').select('user_id').eq('organization_id', c.data);
+  expect((left.data ?? []).length === 0 && (members.data ?? []).length === 0, 'organizzazione o membri ancora presenti');
+  created.orgs = created.orgs.filter((x) => x !== c.data);
+  return `eliminata; riepilogo ${JSON.stringify(ok.data)}`;
+});
+
+await check('L3', 'Cancellazione di un utente proprietario di un progetto: progetto conservato, owner_id NULL', async () => {
+  const before = await admin.from('projects').select('id, owner_id').eq('id', proj.project.id).maybeSingle();
+  expect(before.data?.owner_id === E.id, 'il progetto di prova non appartiene all’editor');
+  const del = await admin.auth.admin.deleteUser(E.id);
+  expect(!del.error, del.error?.message);
+  const after = await admin.from('projects').select('id, owner_id, updated_by').eq('id', proj.project.id).maybeSingle();
+  expect(after.data?.id === proj.project.id && after.data.owner_id === null, `progetto perso o owner_id non azzerato: ${JSON.stringify(after.data)}`);
+  const prof = await admin.from('users').select('id').eq('id', E.id);
+  expect((prof.data ?? []).length === 0, 'profilo pubblico ancora presente');
+  created.users = created.users.filter((u) => u !== E.id);
+  return 'progetto conservato con owner_id NULL; profilo eliminato';
+});
+
+await check('L4', 'L’unico amministratore di un’organizzazione esistente non può essere cancellato', async () => {
+  const del = await admin.auth.admin.deleteUser(A.id);
+  const still = await admin.from('users').select('id').eq('id', A.id);
+  expect(!!del.error && (still.data ?? []).length === 1, `cancellazione non bloccata: ${del.error?.message ?? 'nessun errore'}`);
+  return del.error.message.slice(0, 120);
+});
+
 record('M12', 'Offline su smartphone e sincronizzazione', 'skip', 'manuale (docs/14)');
 record('M14', 'Pulizia a fine conservazione pianificata', 'skip', 'manuale: richiede pg_cron e segreto (docs/13)');
 record('S8', 'Magic link via email', 'skip', 'manuale: verificare la ricezione della mail di test');
@@ -472,13 +531,27 @@ record('S8', 'Magic link via email', 'skip', 'manuale: verificare la ricezione d
 await finish();
 
 async function finish() {
+  // ogni eliminazione è verificata: una pulizia fallita non viene mai dichiarata riuscita
+  const cleanupErrors = [];
   if (!KEEP) {
     for (const m of created.media) {
-      await admin.storage.from('project-media').remove([m.path]);
-      await admin.from('media_assets').delete().eq('id', m.id);
+      const s1 = await admin.storage.from('project-media').remove([m.path]);
+      if (s1.error) cleanupErrors.push(`file ${m.id.slice(0, 8)}: ${s1.error.message}`);
+      const s2 = await admin.from('media_assets').delete().eq('id', m.id);
+      if (s2.error) cleanupErrors.push(`scheda ${m.id.slice(0, 8)}: ${s2.error.message}`);
     }
-    for (const o of created.orgs) await admin.from('organizations').delete().eq('id', o);
-    for (const u of created.users) await admin.auth.admin.deleteUser(u);
+    for (const o of created.orgs) {
+      const row = await admin.from('organizations').select('name').eq('id', o).maybeSingle();
+      if (!row.data) continue;
+      const r = await admin.rpc('delete_organization', { p_org: o, p_confirm_name: row.data.name });
+      const left = await admin.from('organizations').select('id').eq('id', o);
+      if (r.error || (left.data ?? []).length > 0) cleanupErrors.push(`organizzazione ${String(o).slice(0, 8)}: ${r.error?.message ?? 'ancora presente'}`);
+    }
+    for (const u of created.users) {
+      const r = await admin.auth.admin.deleteUser(u);
+      const left = await admin.from('users').select('id').eq('id', u);
+      if (r.error || (left.data ?? []).length > 0) cleanupErrors.push(`utente ${String(u).slice(0, 8)}: ${r.error?.message ?? 'ancora presente'}`);
+    }
   }
   const ok = results.filter((r) => r.status === 'ok').length;
   const ko = results.filter((r) => r.status === 'ko').length;
@@ -490,7 +563,7 @@ async function finish() {
     `- Ambiente: progetto di TEST su \`${host}\` (riferimento oscurato)`,
     `- Esecuzione: ${run}, ${started.toISOString()} → ${new Date().toISOString()}`,
     `- Esito: ${ok} superati, ${ko} falliti, ${results.length - ok - ko} non eseguiti`,
-    `- Pulizia dei dati di prova: ${KEEP ? 'no (--keep)' : 'sì'}`,
+    `- Pulizia dei dati di prova: ${KEEP ? 'no (--keep)' : cleanupErrors.length ? `**NON riuscita** (${cleanupErrors.length} errori): ${cleanupErrors.join('; ').replace(/\|/g, '/')}` : 'riuscita (ogni eliminazione verificata)'}`,
     '',
     '| ID | Controllo | Esito | Evidenza |',
     '|---|---|---|---|',
@@ -500,5 +573,6 @@ async function finish() {
   ];
   writeFileSync(`docs/reports/supabase-real-${day}-${run}.md`, lines.join('\n') + '\n');
   console.log(`\nReport: docs/reports/supabase-real-${day}-${run}.md`);
-  process.exit(ko ? 1 : 0);
+  if (cleanupErrors.length) console.log(`Pulizia NON riuscita: ${cleanupErrors.length} errori (vedi report)`);
+  process.exit(ko || cleanupErrors.length ? 1 : 0);
 }

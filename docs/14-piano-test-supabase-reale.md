@@ -74,6 +74,19 @@ Le password degli utenti di prova sono casuali, non vengono stampate né salvate
 | W7 | Open-Meteo irraggiungibile (URL di test errato) | acquisizione in errore, dati precedenti intatti | |
 | W8 | Pannello su GitHub Pages con utente reale | dati, fonte, cella, avviso; “Aggiorna dati” solo per editor | |
 
+## Casi L — concorrenza, organizzazioni, utenti (migrazione 0010)
+
+| # | Caso | Atteso | Esito 25/10/2026 |
+|---|---|---|---|
+| S5 | Secondo salvataggio con versione superata | HTTP 409 `PT409` immediato, dati invariati | 409 in 139 ms |
+| L1 | Rimozione o declassamento dell’ultimo amministratore | negati | negati |
+| L2 | Eliminazione di un’organizzazione temporanea | solo amministratore, nome come conferma, cascata completa | superato |
+| L3 | Cancellazione di un utente proprietario di un progetto | progetto conservato, `owner_id` NULL | superato |
+| L4 | Cancellazione dell’unico amministratore di un’organizzazione esistente | negata | negata |
+
+Pulizia dei dati di prova: `scripts/supabase-real/cleanup-test-data.mjs --anteprima`, poi `--elimina` (solo gli ID
+dell’anteprima, con verifica dei conteggi reali).
+
 ## Criteri di uscita
 
 - Tutti i casi con esito atteso e evidenza archiviata.

@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { NavLink, Outlet, useMatch } from 'react-router-dom';
+import { ConflictNotice } from '../components/ConflictNotice';
 import { useStore, lastProjectId } from '../state/store';
 import { useAuth, ROLE_LABEL } from '../state/auth';
 import { usePreferences } from '../state/preferences';
@@ -9,7 +11,8 @@ const linkCls = ({ isActive }: { isActive: boolean }) =>
   `flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ${isActive ? 'bg-petrol-700 text-white' : 'text-petrol-900 hover:bg-petrol-100'}`;
 
 export function Layout() {
-  const { get, persistent, error, clearError, kind } = useStore();
+  const { get, persistent, error, clearError, kind, conflict, resolveConflict } = useStore();
+  const [reloading, setReloading] = useState(false);
   const { current, session, client } = useAuth();
   const { preferences } = usePreferences();
   const match = useMatch('/progetti/:id/*');
@@ -120,6 +123,21 @@ export function Layout() {
             <p className="rounded-md bg-petrol-100 p-2 text-sm text-petrol-900" role="status">
               Ruolo “lettura” in {current.organizationName}: puoi consultare i progetti, le modifiche verranno rifiutate dal server.
             </p>
+          )}
+          {conflict && (
+            <ConflictNotice
+              info={conflict}
+              busy={reloading}
+              onReload={async () => {
+                setReloading(true);
+                try {
+                  await resolveConflict('reload');
+                } finally {
+                  setReloading(false);
+                }
+              }}
+              onCancel={() => void resolveConflict('cancel')}
+            />
           )}
           {error && (
             <div className="flex items-start justify-between gap-2 rounded-md bg-alert-100 p-2 text-sm text-alert-800" role="alert">

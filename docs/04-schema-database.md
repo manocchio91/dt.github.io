@@ -67,3 +67,11 @@ sources, case_studies, reports, audit_logs
 | `forecast_alerts` | avviso, probabilità, primo superamento, stato, valore osservato, nota di verifica | modificabili solo stato ed ex-post |
 
 RLS per organizzazione (viewer legge, editor scrive, admin elimina esecuzioni); audit in `audit_logs` per esecuzioni, soglie, avvisi e backtest.
+
+## Migrazione 0010 — concorrenza, organizzazioni, utenti
+
+- `save_project`: conflitto con SQLSTATE `PT409` (HTTP 409), dettagli JSON e hint `MDT_CONFLITTO_VERSIONE`.
+- `memberships_last_admin`: constraint trigger `DEFERRABLE INITIALLY DEFERRED`, verifica solo organizzazioni esistenti.
+- `delete_organization(uuid, text)`: amministratore o servizio, conferma del nome, nessun file presente, audit minimo.
+- Riferimenti a `users`: `ON DELETE SET NULL` (vedi [17](17-conflitti-e-cancellazioni.md)); `audit_logs.organization_id` `ON DELETE SET NULL`.
+- Guardie di immutabilità separate per inserimento e modifica; la modifica salta la guardia solo per l’azzeramento di riferimenti a utenti eliminati.

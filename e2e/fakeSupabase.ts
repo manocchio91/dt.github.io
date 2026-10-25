@@ -127,7 +127,7 @@ export async function installFakeSupabase(page: Page, state: FakeState) {
       const cur = state.docs[id];
       if ((cur?.version ?? 0) !== body.p_expected_version) {
         state.rpcCalls.push({ name: 'save_project', body, status: 409 });
-        return json(route, 409, { code: '40001', message: 'Conflitto' });
+        return json(route, 409, { code: 'PT409', message: 'Il progetto è stato aggiornato da un’altra persona.', hint: 'MDT_CONFLITTO_VERSIONE', details: JSON.stringify({ codice: 'MDT_CONFLITTO_VERSIONE', versione_attesa: body.p_expected_version, versione_trovata: cur?.version ?? null, aggiornato_il: '2026-10-25T09:00:00Z' }) });
       }
       state.docs[id] = { bundle: body.p_bundle, version: body.p_expected_version + 1, org: body.p_organization_id };
       state.rpcCalls.push({ name: 'save_project', body, status: 200 });

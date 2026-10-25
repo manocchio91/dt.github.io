@@ -104,7 +104,7 @@ describe('Isolamento tra organizzazioni (F26)', () => {
     await expect(save(orgA, intruder, 0)).rejects.toThrow(/Permesso negato/);
     await expect(save(orgA, bundle, 1)).rejects.toThrow(/Permesso negato/);
     // anche dichiarando la propria organizzazione non può toccare il progetto altrui
-    await expect(save(orgB, bundle, 1)).rejects.toThrow(/Conflitto/);
+    await expect(save(orgB, bundle, 1)).rejects.toThrow(/aggiornato da un.altra persona/);
   });
 
   it('anonimo: nessun accesso alle tabelle e alle funzioni di scrittura', async () => {
@@ -129,7 +129,7 @@ describe('Ruoli nel tenant', () => {
     const b2 = clone(bundle);
     b2.project.name = 'Piazza — revisione tecnica';
     expect(await save(orgA, b2, 1)).toBe(2);
-    await expect(save(orgA, b2, 1)).rejects.toThrow(/Conflitto/);
+    await expect(save(orgA, b2, 1)).rejects.toThrow(/aggiornato da un.altra persona/);
     const p = await one<{ name: string; area_m2: number }>('select name, area_m2 from projects where id = $1', [pid]);
     expect(p.name).toBe('Piazza — revisione tecnica');
     expect(p.area_m2).toBeGreaterThan(5000);

@@ -313,10 +313,10 @@ describe('Consultazione ed eliminazione', () => {
     const fresh = await newMedia();
     await putObject(fresh.storage_path);
     await confirmAsService(fresh.id);
-    await db.query(`alter table media_assets disable trigger media_assets_guard`);
+    await db.query(`alter table media_assets disable trigger media_assets_guard_upd`);
     const old = fresh.id;
     await db.query(`update media_assets set retention_until = current_date - 1 where id = $1`, [old]);
-    await db.query(`alter table media_assets enable trigger media_assets_guard`);
+    await db.query(`alter table media_assets enable trigger media_assets_guard_upd`);
     await actAs(db, { id: U.admin });
     expect((await db.query('select id from public.media_due_for_deletion($1)', [orgA])).rows).toEqual([{ id: old }]);
     await actAs(db, { id: U.editor });
