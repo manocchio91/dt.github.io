@@ -13,10 +13,36 @@ export async function expectQuestion(page: Page, text: string) {
   await expect(page.getByRole('heading', { level: 1, name: text })).toBeVisible();
 }
 
-/** Nessuno scroll orizzontale della pagina. */
+/**
+ * Nessuno scroll orizzontale della pagina. Il confronto è anche con la larghezza del viewport
+ * impostata dal test: sui dispositivi mobili emulati `innerWidth` e `clientWidth` si allargano
+ * insieme a un contenuto troppo largo e da soli non rivelano lo sforamento.
+ */
 export async function expectNoHorizontalScroll(page: Page) {
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(overflow).toBeLessThanOrEqual(1);
+  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+  const viewport = page.viewportSize();
+  if (viewport) expect(scrollWidth).toBeLessThanOrEqual(viewport.width);
+}
+
+/** Ogni etichetta di fonte visibile sta dentro il proprio contenitore e dentro il viewport. */
+export async function expectSourceBadgesInside(page: Page) {
+  const width = page.viewportSize()?.width ?? Number.MAX_SAFE_INTEGER;
+  const outside = await page.locator('[data-source]:visible').evaluateAll(
+    (els, w) =>
+      els
+        .map((e) => {
+          const r = e.getBoundingClientRect();
+          const p = e.parentElement!.getBoundingClientRect();
+          return { text: e.textContent ?? '', left: r.left, right: r.right, pLeft: p.left, pRight: p.right };
+        })
+        .filter((b) => b.left < -1 || b.right > w + 1 || b.left < b.pLeft - 1 || b.right > b.pRight + 1),
+    width,
+  );
+  expect(outside).toEqual([]);
 }
 
 export const EDIT_BUTTONS = /^(Calcola|Aggiungi|Registra|Crea|Elimina|Salva|Disegna|Importa|Conferm|Aggiorna|Invia|Usa valori|Posiziona|Carica|Rimuovi|Copia qui)/;
