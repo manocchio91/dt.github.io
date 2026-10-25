@@ -1,0 +1,85 @@
+{
+ "generatedAt": "2026-10-25",
+ "model": "mistralai/Timestral-5M@bdd20cfc15a3fea0e4cb5ccef37f8d3ca7aa335f",
+ "method": "physical_clipping_v1",
+ "summary": [
+  {
+   "horizon": 24,
+   "origins": 78,
+   "raw": {
+    "mae": 8.273505534188022,
+    "wql": 0.10263904382251579,
+    "cov80": 0.7483974358974359
+   },
+   "clipped": {
+    "mae": 8.273505534188022,
+    "wql": 0.10258257303932168,
+    "cov80": 0.7483974358974359
+   },
+   "adjusted": 631,
+   "total": 39312,
+   "adjustedPct": 1.605107855107855,
+   "originsAdjusted": 64,
+   "originsAdjustedPct": 82.05128205128206,
+   "rawMedianOutOfRange": 0,
+   "outOfRangeRaw": 631,
+   "maxRaw": 120.267822,
+   "minRaw": 5.343288,
+   "quantilesAt100Pct": 1.605107855107855,
+   "medianOutOfRange": 0,
+   "crossedRows": 0
+  },
+  {
+   "horizon": 48,
+   "origins": 77,
+   "raw": {
+    "mae": 9.300888797619047,
+    "wql": 0.11436227374480709,
+    "cov80": 0.773538961038961
+   },
+   "clipped": {
+    "mae": 9.300888797619047,
+    "wql": 0.11427865191417619,
+    "cov80": 0.773538961038961
+   },
+   "adjusted": 1712,
+   "total": 77616,
+   "adjustedPct": 2.2057307771593484,
+   "originsAdjusted": 75,
+   "originsAdjustedPct": 97.40259740259741,
+   "rawMedianOutOfRange": 0,
+   "outOfRangeRaw": 1712,
+   "maxRaw": 128.524155,
+   "minRaw": 4.645828,
+   "quantilesAt100Pct": 2.2057307771593484,
+   "medianOutOfRange": 0,
+   "crossedRows": 0
+  },
+  {
+   "horizon": 72,
+   "origins": 76,
+   "raw": {
+    "mae": 9.863091536001486,
+    "wql": 0.12049119801509654,
+    "cov80": 0.7849049707602339
+   },
+   "clipped": {
+    "mae": 9.863091536001486,
+    "wql": 0.1203963838543061,
+    "cov80": 0.7849049707602339
+   },
+   "adjusted": 2819,
+   "total": 114912,
+   "adjustedPct": 2.4531815650236704,
+   "originsAdjusted": 76,
+   "originsAdjustedPct": 100,
+   "rawMedianOutOfRange": 0,
+   "outOfRangeRaw": 2819,
+   "maxRaw": 130.822693,
+   "minRaw": 3.913677,
+   "quantilesAt100Pct": 2.4531815650236704,
+   "medianOutOfRange": 0,
+   "crossedRows": 0
+  }
+ ]
+}

@@ -108,14 +108,18 @@ P0 = Milestone 0 (integrità) · P1 = Milestone 1 (MVP pilota) · P2 = Milestone
 |---|---|---|
 | B-162 | Calibrazione dei dati Open-Meteo con sensori locali (oggi dato territoriale modellato, cella di alcuni km) | F04, F05, F30 |
 | B-163 | Validazione scientifica delle soglie (caldo urbano, umidità del suolo, soglie per coltura) con tecnico comunale e agronomo | F09, F13, F31 |
-| B-164 | Timestral reale: servizio eseguito, pesi installati fuori da Git, backtest e decisione (vedi B-131–B-133); fino ad allora “modello avanzato non disponibile” | F31 |
-| B-165 | Proxy autenticato per Timestral (B-131) prima di qualunque collegamento dal sito pubblico | F31 |
+| B-164 | Timestral reale: servizio eseguito, pesi installati fuori da Git, backtest e decisione (vedi B-131–B-133); fino ad allora “modello avanzato non disponibile” — **in parte: Timestral-5M eseguito in Docker locale e confrontato con le baseline (25/10/2026, `docs/15` §13); decisione e validazione restano aperte** | F31 |
+| B-165 | Proxy autenticato per Timestral (B-131) prima di qualunque collegamento dal sito pubblico — **in parte: Edge Function `forecast-proxy` scritta e testata (PGlite e staging reale con container locale); non pubblicata, serve un servizio Timestral ospitato in cloud** | F31 |
 | B-166 | Politica di conservazione dei dati meteorologici (B-143): durata, aggregazione, cancellazione | F04, F25 |
 | B-167 | Decision Lab agricolo robusto a documenti incompleti dal server (un progetto senza fase fenologica blocca la pagina) | F28 |
 | B-168 | Tag `ux-audit-semplificata` pubblicato per errore su 4dfc7f7 invece che sul merge 0fb8ca9 — **fatto il 25/10/2026 (tag annotato ricreato su 0fb8ca9, autorizzato dal responsabile)** | — |
 | B-169 | Security Advisor: “leaked password protection” di Supabase Auth disattivata (avviso, piano a pagamento) | F26 |
 | B-170 | GitHub Pages risponde con stato HTTP 404 (pagina di fallback) alle route interne aperte direttamente: funzionano, ma compaiono come errori di rete in console | — |
 | B-171 | Progetto di un’altra organizzazione aperto da link diretto: il messaggio dice “Progetto non trovato in questo browser” anche quando si lavora sull’archivio condiviso (testo da adattare, nessun dato esposto) | F26, F29 |
+| B-172 | Valutare trasformazione limitata dell’umidità relativa prima della previsione, per esempio logit/sigmoide, e confrontarla con il vincolo fisico successivo alla previsione (`physical_clipping_v1`), con uno storico più lungo e tramite backtest | F31 |
+| B-173 | Timestral sottostima l’incertezza su alcune serie (copertura 80% sotto il nominale nel backtest; 0,25–0,33 su temperatura e suolo nella verifica di 24 h): calibrare gli intervalli o segnalarlo prima dell’uso decisionale | F31 |
+| B-174 | Storico per Timestral dalla sola Edge Function: oggi ~24 h salvate (past_days=1), sotto il minimo di 72 h; accumulare lo storico del job o ampliare past_days, con politica di conservazione (B-166) | F04, F31 |
+| B-175 | Servizio Timestral ospitato (immagine 1,42 GB, 2 GB di RAM consigliati) raggiungibile solo dal proxy, con segreti e monitoraggio; poi `VITE_FORECAST_URL` sul sito pubblico | F31 |
 
 ## P2 — Milestone 2
 
