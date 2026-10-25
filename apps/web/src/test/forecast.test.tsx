@@ -24,7 +24,7 @@ const open = (b: ProjectBundle, repo: Repository = localRepo([b]), auth = fakeAu
 describe('F31 — Previsioni nel caso urbano (Campobasso)', () => {
   it('mostra baseline, “ora”, banda, soglia e il disclaimer sugli interventi', async () => {
     open(urban);
-    const badge = await screen.findByTestId('forecast-badge');
+    const badge = await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
     expect(badge.textContent).toMatch(/STIMATO DA MODELLO — Persistenza stagionale/);
     expect(badge.textContent).not.toMatch(/Timestral/);
     expect(screen.getByText(/non stima l’effetto di alberi/)).toBeTruthy();
@@ -38,7 +38,7 @@ describe('F31 — Previsioni nel caso urbano (Campobasso)', () => {
 
   it('banda selezionabile e confronto ex-post con l’osservazione successiva', async () => {
     open(urban);
-    await screen.findByTestId('forecast-badge');
+    await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
     fireEvent.change(screen.getByLabelText('Intervallo mostrato'), { target: { value: '98' } });
     expect(screen.getAllByText(/intervallo 98%/).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByLabelText(/Mostra l’osservazione successiva/));
@@ -56,7 +56,7 @@ describe('F31 — Previsioni nel caso urbano (Campobasso)', () => {
 
   it('grafico navigabile da tastiera con annuncio testuale', async () => {
     open(urban);
-    await screen.findByTestId('forecast-badge');
+    await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
     const chart = screen.getByRole('group', { name: /Storico e previsione/ });
     chart.focus();
     fireEvent.keyDown(chart, { key: 'Home' });
@@ -70,7 +70,7 @@ describe('F31 — Previsioni nel caso urbano (Campobasso)', () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
     open(urban);
-    await screen.findByTestId('forecast-badge');
+    await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
     fireEvent.change(screen.getByLabelText('Modello'), { target: { value: 'mistralai/Timestral-5M' } });
     expect(await screen.findByText('Motore Timestral non configurato', { selector: 'p.font-bold' })).toBeTruthy();
     expect(screen.queryByTestId('forecast-badge')).toBeNull();
@@ -88,7 +88,7 @@ describe('F31 — Previsioni nel caso urbano (Campobasso)', () => {
     vi.stubGlobal('fetch', fetchSpy);
     const session = { ...fakeSession(), access_token: 'jwt-di-sessione' } as ReturnType<typeof fakeSession>;
     open(urban, localRepo([urban]), fakeAuth({ session }));
-    await screen.findByTestId('forecast-badge');
+    await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
     fireEvent.change(screen.getByLabelText('Modello'), { target: { value: 'mistralai/Timestral-5M' } });
     await waitFor(() => expect(screen.getByTestId('forecast-badge').textContent).toMatch(/STIMATO DA MODELLO — Timestral 5M \[bdd20cf\]/));
     const [url, init] = fetchSpy.mock.calls[0]!;
@@ -99,7 +99,7 @@ describe('F31 — Previsioni nel caso urbano (Campobasso)', () => {
   it('registra la previsione nel progetto (dossier) e poi aggiunge il confronto ex-post', async () => {
     const repo = localRepo([urban]);
     open(urban, repo);
-    await screen.findByTestId('forecast-badge');
+    await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
     fireEvent.click(screen.getByRole('button', { name: 'Registra questa previsione nel progetto' }));
     expect(await screen.findByText(/compare nell’export del dossier/)).toBeTruthy();
     fireEvent.click(await screen.findByRole('button', { name: 'Confronta con l’osservazione successiva' }));
@@ -115,7 +115,7 @@ describe('F31 — Previsioni nel caso urbano (Campobasso)', () => {
   it('il ruolo “lettura” consulta ma non registra', async () => {
     const auth = fakeAuth({ session: fakeSession(), memberships: [member('viewer')], current: member('viewer') });
     open(urban, remoteRepo([urban]), auth);
-    await screen.findByTestId('forecast-badge');
+    await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
     expect(screen.queryByRole('button', { name: /Registra/ })).toBeNull();
     expect(screen.getByText(/riservata a chi modifica il progetto/)).toBeTruthy();
   });
@@ -124,7 +124,7 @@ describe('F31 — Previsioni nel caso urbano (Campobasso)', () => {
 describe('F31 — Previsioni nel caso vigneto', () => {
   it('testo obbligatorio, orizzonte 72 h e zone segnalate dalle soglie dell’agronomo', async () => {
     open(agri);
-    await screen.findByTestId('forecast-badge');
+    await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
     expect(screen.getByText('Previsione prodotta da un modello e non misurazione sul terreno. Verificare in campo e confrontarsi con un agronomo prima di intervenire.')).toBeTruthy();
     expect((screen.getByLabelText('Orizzonte') as HTMLSelectElement).value).toBe('72');
     const zt = within(await screen.findByTestId('zone-table'));

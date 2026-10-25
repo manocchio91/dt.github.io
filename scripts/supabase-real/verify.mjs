@@ -175,10 +175,18 @@ await check('S4', 'Isolamento: l’esterno non vede progetti né documenti', asy
 await check('S5', 'Concorrenza: il secondo salvataggio riceve conflitto', async () => {
   const v2 = await E.client.rpc('save_project', { p_organization_id: orgA, p_bundle: { ...proj, audit: [...proj.audit, { at: new Date().toISOString(), action: 'x', detail: 'x' }] }, p_bundle_hash: 'h', p_expected_version: 1 });
   expect(!v2.error, v2.error?.message);
+  const t0 = Date.now();
   const stale = await E.client.rpc('save_project', { p_organization_id: orgA, p_bundle: proj, p_bundle_hash: 'h', p_expected_version: 1 });
-  expect(stale.error?.code === '40001', `atteso 40001, ricevuto codice=${stale.error?.code} HTTP=${stale.status} dati=${JSON.stringify(stale.data)} messaggio=${String(stale.error?.message ?? '').slice(0, 120)}`);
+  const ms = Date.now() - t0;
+  expect(stale.status === 409 && stale.error?.code === 'PT409', `atteso HTTP 409 PT409, ricevuto codice=${stale.error?.code} HTTP=${stale.status} messaggio=${String(stale.error?.message ?? '').slice(0, 120)}`);
+  expect(stale.error?.hint === 'MDT_CONFLITTO_VERSIONE', `hint inatteso: ${stale.error?.hint}`);
+  expect(ms < 5000, `risposta lenta: ${ms} ms (possibile nuovo tentativo)`);
+  const d = JSON.parse(stale.error?.details ?? '{}');
+  expect(d.versione_attesa === 1 && d.versione_trovata === 2, `dettagli inattesi: ${stale.error?.details}`);
+  const doc = await admin.from('project_documents').select('version').eq('project_id', proj.project.id).maybeSingle();
+  expect(doc.data?.version === 2, `il conflitto ha modificato i dati: versione ${doc.data?.version}`);
   proj.audit.push({ at: new Date().toISOString(), action: 'x', detail: 'x' });
-  return '40001';
+  return `HTTP 409 PT409 in ${ms} ms, dati invariati (versione 2)`;
 });
 
 await check('S6', 'Baseline immutabile', async () => {
@@ -468,6 +476,54 @@ if (wStatus === 404 || wStatus === 0) {
 }
 record('W6', 'Meteo: job pg_cron ogni 3 ore', 'skip', 'manuale: verificare cron.job_run_details e una nuova emissione dopo 3 ore (docs/16)');
 
+// ------------------------------------------------------------ L: organizzazioni e utenti (migrazione 0010)
+await check('L1', 'Ultimo amministratore: rimozione negata in un’organizzazione esistente', async () => {
+  const del = await A.client.from('memberships').delete().eq('organization_id', orgA).eq('user_id', A.id).select('user_id');
+  const still = await admin.from('memberships').select('user_id').eq('organization_id', orgA).eq('role', 'admin');
+  expect(!!del.error && (still.data ?? []).length === 1, `rimozione non negata: ${del.error?.message ?? 'nessun errore'}`);
+  const demote = await A.client.from('memberships').update({ role: 'editor' }).eq('organization_id', orgA).eq('user_id', A.id);
+  expect(!!demote.error, 'declassamento dell’ultimo amministratore accettato');
+  return del.error.message;
+});
+
+await check('L2', 'Eliminazione completa di un’organizzazione temporanea (amministratore, conferma del nome)', async () => {
+  const name = `MDT test ${run} C`;
+  const c = await O.client.rpc('create_organization', { p_name: name });
+  expect(!c.error, c.error?.message);
+  created.orgs.push(c.data);
+  const wrong = await O.client.rpc('delete_organization', { p_org: c.data, p_confirm_name: 'nome sbagliato' });
+  expect(!!wrong.error, 'eliminazione senza conferma corretta accettata');
+  const byOther = await E.client.rpc('delete_organization', { p_org: c.data, p_confirm_name: name });
+  expect(!!byOther.error, 'eliminazione da un non amministratore accettata');
+  const ok = await O.client.rpc('delete_organization', { p_org: c.data, p_confirm_name: name });
+  expect(!ok.error, ok.error?.message);
+  const left = await admin.from('organizations').select('id').eq('id', c.data);
+  const members = await admin.from('memberships').select('user_id').eq('organization_id', c.data);
+  expect((left.data ?? []).length === 0 && (members.data ?? []).length === 0, 'organizzazione o membri ancora presenti');
+  created.orgs = created.orgs.filter((x) => x !== c.data);
+  return `eliminata; riepilogo ${JSON.stringify(ok.data)}`;
+});
+
+await check('L3', 'Cancellazione di un utente proprietario di un progetto: progetto conservato, owner_id NULL', async () => {
+  const before = await admin.from('projects').select('id, owner_id').eq('id', proj.project.id).maybeSingle();
+  expect(before.data?.owner_id === E.id, 'il progetto di prova non appartiene all’editor');
+  const del = await admin.auth.admin.deleteUser(E.id);
+  expect(!del.error, del.error?.message);
+  const after = await admin.from('projects').select('id, owner_id, updated_by').eq('id', proj.project.id).maybeSingle();
+  expect(after.data?.id === proj.project.id && after.data.owner_id === null, `progetto perso o owner_id non azzerato: ${JSON.stringify(after.data)}`);
+  const prof = await admin.from('users').select('id').eq('id', E.id);
+  expect((prof.data ?? []).length === 0, 'profilo pubblico ancora presente');
+  created.users = created.users.filter((u) => u !== E.id);
+  return 'progetto conservato con owner_id NULL; profilo eliminato';
+});
+
+await check('L4', 'L’unico amministratore di un’organizzazione esistente non può essere cancellato', async () => {
+  const del = await admin.auth.admin.deleteUser(A.id);
+  const still = await admin.from('users').select('id').eq('id', A.id);
+  expect(!!del.error && (still.data ?? []).length === 1, `cancellazione non bloccata: ${del.error?.message ?? 'nessun errore'}`);
+  return del.error.message.slice(0, 120);
+});
+
 record('M12', 'Offline su smartphone e sincronizzazione', 'skip', 'manuale (docs/14)');
 record('M14', 'Pulizia a fine conservazione pianificata', 'skip', 'manuale: richiede pg_cron e segreto (docs/13)');
 record('S8', 'Magic link via email', 'skip', 'manuale: verificare la ricezione della mail di test');
@@ -485,12 +541,16 @@ async function finish() {
       if (s2.error) cleanupErrors.push(`scheda ${m.id.slice(0, 8)}: ${s2.error.message}`);
     }
     for (const o of created.orgs) {
-      const r = await admin.from('organizations').delete().eq('id', o).select('id');
-      if (r.error || (r.data ?? []).length === 0) cleanupErrors.push(`organizzazione ${String(o).slice(0, 8)}: ${r.error?.message ?? 'non eliminata'}`);
+      const row = await admin.from('organizations').select('name').eq('id', o).maybeSingle();
+      if (!row.data) continue;
+      const r = await admin.rpc('delete_organization', { p_org: o, p_confirm_name: row.data.name });
+      const left = await admin.from('organizations').select('id').eq('id', o);
+      if (r.error || (left.data ?? []).length > 0) cleanupErrors.push(`organizzazione ${String(o).slice(0, 8)}: ${r.error?.message ?? 'ancora presente'}`);
     }
     for (const u of created.users) {
       const r = await admin.auth.admin.deleteUser(u);
-      if (r.error) cleanupErrors.push(`utente ${String(u).slice(0, 8)}: ${r.error.message}`);
+      const left = await admin.from('users').select('id').eq('id', u);
+      if (r.error || (left.data ?? []).length > 0) cleanupErrors.push(`utente ${String(u).slice(0, 8)}: ${r.error?.message ?? 'ancora presente'}`);
     }
   }
   const ok = results.filter((r) => r.status === 'ok').length;

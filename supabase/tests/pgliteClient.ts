@@ -10,7 +10,7 @@ import { completeUpload, deleteMedia, GatewayError, signedUrl, type GatewayClien
  * Ogni client può agire come un attore preciso (utente, servizio, anonimo).
  * Non riproduce la firma crittografica degli URL di Supabase.
  */
-type Err = { code?: string; message: string; context?: { status: number; json(): Promise<unknown> } };
+type Err = { code?: string; message: string; details?: string | null; hint?: string | null; context?: { status: number; json(): Promise<unknown> } };
 type Result = { data: unknown; error: Err | null };
 
 const ident = (s: string) => {
@@ -41,8 +41,9 @@ export function pgliteClient(db: PGlite, opts: ClientOptions = {}) {
       if (opts.as) await actAs(db, opts.as);
       return { rows: (await db.query<Record<string, unknown>>(sql, params)).rows };
     } catch (e) {
-      const err = e as { code?: string; message: string };
-      return { error: { code: err.code, message: err.message } };
+      const err = e as { code?: string; message: string; detail?: string; hint?: string };
+      // come PostgREST: details e hint accanto a code e message
+      return { error: { code: err.code, message: err.message, details: err.detail ?? null, hint: err.hint ?? null } };
     }
   }
 
