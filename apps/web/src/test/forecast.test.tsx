@@ -179,5 +179,8 @@ describe('Previsioni — modalità guidata (Audit Anno Luce)', () => {
     const s = await screen.findByTestId('forecast-summary', {}, { timeout: 10_000 });
     expect(s.textContent).toMatch(/campo|agronomo|zone da controllare/);
     expect(s.textContent).not.toMatch(/irriga|tratta|automatic/i);
+    // la fascia di variazione dell'umidità del suolo non mostra due estremi uguali per arrotondamento
+    const [, lo, hi] = s.textContent!.match(/tra ([\d,]+) e ([\d,]+) m³\/m³/)!;
+    expect(lo).not.toBe(hi);
   });
 });

@@ -202,7 +202,7 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
             </dd>
             <dt className="font-semibold text-sand-600">Fascia di possibile variazione</dt>
             <dd className="tabular-nums">
-              tra {formatNumber(chartForecast.lower[peak]!, '')} e {formatNumber(chartForecast.upper[peak]!, series.unit)} ({BAND_PLAIN[band]})
+              {rangeText(chartForecast.lower[peak]!, chartForecast.upper[peak]!, series.unit)} ({BAND_PLAIN[band]})
             </dd>
             <dt className="font-semibold text-sand-600">Probabilità di superare la soglia</dt>
             <dd className="tabular-nums">{Math.round(finding.maxProbability * 100)}% al massimo</dd>
@@ -218,8 +218,8 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
                 ? 'controlla sul posto le aree più frequentate prima di decidere.'
                 : 'controlla in campo le zone segnalate o consulta l’agronomo prima di intervenire.'
               : urban
-                ? 'nessuna verifica urgente: puoi proseguire con gli scenari del Decision Lab.'
-                : 'nessuna verifica urgente: prosegui con le zone da controllare nel Decision Lab.'}
+                ? 'nessuna urgenza, puoi proseguire con gli scenari del Decision Lab.'
+                : 'nessuna urgenza, prosegui con le zone da controllare nel Decision Lab.'}
           </p>
         </section>
       )}
@@ -606,6 +606,18 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
       </Section>
     </div>
   );
+}
+
+/** "tra X e Y": con una cifra decimale in più quando l'arrotondamento renderebbe uguali i due estremi. */
+function rangeText(lo: number, hi: number, unit: string): string {
+  let a = formatNumber(lo, '');
+  let b = formatNumber(hi, unit);
+  if (a === formatNumber(hi, '') && lo !== hi) {
+    const fmt = (v: number) => v.toLocaleString('it-IT', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    a = fmt(lo);
+    b = unit ? `${fmt(hi)} ${unit}` : fmt(hi);
+  }
+  return `tra ${a} e ${b}`;
 }
 
 /** Ora del valore centrale più vicino alla soglia: il massimo se la soglia è "sopra", il minimo se è "sotto". */
