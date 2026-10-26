@@ -284,3 +284,86 @@ describe('Previsioni — modalità guidata (Audit Anno Luce)', () => {
     expect(lo).not.toBe(hi);
   });
 });
+
+describe('Modello avanzato sullo storico Open-Meteo salvato su Supabase', () => {
+  const LOC = '00000000-0000-4000-8000-0000000c0c01';
+  /** Doppio minimo di supabase-js per località, stato dello storico, storico e previsione Open-Meteo. */
+  function weatherClient(hours: number, livello = hours >= 168 ? 'disponibile' : hours >= 72 ? 'consolidamento' : 'insufficiente') {
+    const H = 3_600_000;
+    const last = Math.floor(Date.now() / H) * H - H;
+    const obs = ['temperature_2m', 'relative_humidity_2m'].flatMap((variable) =>
+      Array.from({ length: hours }, (_, i) => ({ observed_at: new Date(last - (hours - 1 - i) * H).toISOString(), variable, value: variable === 'temperature_2m' ? 15 + (i % 24) / 3 : 70, unit: variable === 'temperature_2m' ? '°C' : '%', source: 'open_meteo' })),
+    );
+    const issued = new Date(last + H).toISOString();
+    const points = Array.from({ length: 100 }, (_, i) => ({ fetch_run_id: 'run-1', issued_at: issued, valid_at: new Date(last + (i + 1) * H).toISOString(), temperature_2m: 18, relative_humidity_2m: 65, unit_metadata: { temperature_2m: '°C' } }));
+    const tables: Record<string, Record<string, unknown>[]> = {
+      weather_locations: [{ id: LOC, project_id: urban.project.id, organization_id: 'org', active: true, created_at: issued }],
+      weather_observations: obs.map((o) => ({ ...o, location_id: LOC })),
+      weather_fetch_runs: [{ id: 'run-1', location_id: LOC, status: 'completata', issued_at: issued }],
+      weather_forecast_points: points,
+    };
+    const calls: string[] = [];
+    const from = (table: string) => {
+      const filters: [string, unknown, 'eq' | 'gte'][] = [];
+      let one = false;
+      const q = {
+        select: () => q,
+        maybeSingle: () => ((one = true), q),
+        eq: (c: string, v: unknown) => (filters.push([c, v, 'eq']), q),
+        gte: (c: string, v: unknown) => (filters.push([c, v, 'gte']), q),
+        order: () => q,
+        limit: () => q,
+        then(ok: (r: { data: unknown; error: null }) => unknown) {
+          calls.push(table);
+          const rows = (tables[table] ?? []).filter((r) => filters.every(([c, v, op]) => (op === 'eq' ? r[c] === v : String(r[c]) >= String(v))));
+          return Promise.resolve({ data: one ? (rows[0] ?? null) : rows, error: null }).then(ok);
+        },
+      };
+      return q;
+    };
+    const status = { stato: hours >= 72 ? 'sufficiente' : 'incompleto', livello, ore_obiettivo: 168, ore_finestra: Math.min(hours, 168), ore_continue: hours, sufficiente_timestral: hours >= 72, buchi: [], variabili: [], ore_per_variabile: {}, variabili_richieste_mancanti: [] };
+    const client = { from, rpc: async () => ({ data: status, error: null }), functions: { invoke: async () => ({ data: null, error: null }) } };
+    return { client: client as unknown as NonNullable<ReturnType<typeof fakeAuth>['client']>, calls };
+  }
+  const proxyOk = () =>
+    vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(init.body as string) as { prediction_length: number };
+      const q = Array.from({ length: body.prediction_length }, () => QUANTILE_LEVELS.map((l) => 20 + (l - 0.5) * 4));
+      return { ok: true, status: 200, json: async () => ({ schema_version: 1, model: 'mistralai/Timestral-5M', revision: TIMESTRAL_MODELS['mistralai/Timestral-5M'].revision, quantile_levels: QUANTILE_LEVELS, quantiles: [[q]], median: [[q.map((r) => r[10])]], inference_ms: 30, warnings: [], run_id: 'run-t' }) } as Response;
+    });
+  const editorWith = (client: unknown) => fakeAuth({ client: client as never, session: { ...fakeSession(), access_token: 'jwt' } as ReturnType<typeof fakeSession>, memberships: [member('editor')], current: member('editor') });
+
+  it('storico di 7 giorni: il contesto arriva da Supabase (ore, località, provenienza), nessuna richiesta a Open-Meteo', async () => {
+    vi.stubEnv('VITE_FORECAST_URL', 'https://proxy.example/forecast');
+    const spy = proxyOk();
+    vi.stubGlobal('fetch', spy);
+    const w = weatherClient(168);
+    open(urban, remoteRepo([urban]), editorWith(w.client));
+    await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
+    fireEvent.change(screen.getByLabelText('Modello'), { target: { value: 'mistralai/Timestral-5M' } });
+    await waitFor(() => expect(screen.getByTestId('forecast-badge').textContent).toMatch(/Timestral-5M/));
+    expect(spy).toHaveBeenCalledTimes(1);
+    const [url, init] = spy.mock.calls[0]!;
+    expect(String(url)).not.toMatch(/open-meteo/);
+    const sent = JSON.parse(init.body as string) as { context: number[][][]; mdt: { location_id: string; lineage: { source: string; period: { to: string } } } };
+    expect(sent.context[0]![0]).toHaveLength(168);
+    expect(sent.mdt.location_id).toBe(LOC);
+    expect(sent.mdt.lineage.source).toMatch(/storico salvato su Supabase/);
+    expect(w.calls).toEqual(expect.arrayContaining(['weather_locations', 'weather_observations', 'weather_forecast_points']));
+    expect(screen.getByTestId('forecast-summary').textContent).toMatch(/dati storici Open-Meteo salvati per quest’area/);
+  });
+
+  it('storico sotto le 72 ore: il modello avanzato non parte e lo dice in parole semplici', async () => {
+    vi.stubEnv('VITE_FORECAST_URL', 'https://proxy.example/forecast');
+    const spy = proxyOk();
+    vi.stubGlobal('fetch', spy);
+    open(urban, remoteRepo([urban]), editorWith(weatherClient(40).client));
+    await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
+    fireEvent.change(screen.getByLabelText('Modello'), { target: { value: 'mistralai/Timestral-5M' } });
+    expect(await screen.findByText('Storico non ancora sufficiente per il modello avanzato.', { selector: 'p.font-bold' })).toBeTruthy();
+    expect(screen.getByText('Puoi continuare con la previsione di base.')).toBeTruthy();
+    expect(screen.getByTestId('forecast-history-short').textContent).toMatch(/40 ore valide su 168/);
+    expect(spy).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('forecast-badge')).toBeNull();
+  });
+});
