@@ -49,10 +49,11 @@ test('percorso ospite', async ({ page }) => {
   await page.goto(LOCAL + '/');
   await page.getByRole('button', { name: /Apri la demo agricola/ }).click();
   await expect(page).toHaveURL(/\/agricolo$/);
+  await shot(page, '07-lab-agricolo');
   const aid = page.url().split('/progetti/')[1]!.split('/')[0]!;
   await page.goto(`${LOCAL}/progetti/${aid}/previsioni`);
   await expect(page.getByTestId('forecast-badge')).toBeVisible({ timeout: 20_000 });
-  await shot(page, '07-previsioni-agricolo');
+  await shot(page, '08-previsioni-agricolo');
 });
 
 test('pannello meteo collegato (backend simulato)', async ({ page }) => {
@@ -68,5 +69,5 @@ test('pannello meteo collegato (backend simulato)', async ({ page }) => {
   await page.goto(`${REMOTE}/progetti/${pid}/urbano`);
   await expect(page.getByRole('heading', { name: 'Dati meteorologici' })).toBeVisible();
   await page.waitForTimeout(800);
-  await shot(page, '08-meteo-collegato', 'weather-panel');
+  await shot(page, '09-meteo-collegato', 'weather-panel');
 });

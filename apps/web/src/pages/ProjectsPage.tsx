@@ -36,7 +36,7 @@ export function ProjectsPage() {
       <h1 className="text-2xl font-extrabold text-petrol-900">Progetti</h1>
       <p className="text-sm text-sand-600">
         {kind === 'supabase'
-          ? 'Progetti dell’organizzazione selezionata, salvati nel database condiviso con versioni e permessi per ruolo.'
+          ? 'Progetti condivisi con l’organizzazione selezionata. Ogni persona vede e modifica solo ciò che il suo ruolo consente.'
           : 'I progetti sono salvati in questo browser. Per conservarli o condividerli accedi a un’organizzazione o usa “Esporta”.'}
       </p>
       <PathGuide where={{ step: 1, what: 'i progetti salvati e le due demo con valori SIMULATI.', why: 'ogni analisi, decisione e verifica resta legata a un progetto, con il suo storico.' }} />
@@ -120,7 +120,7 @@ export function ProjectsPage() {
                 {b.area ? `Area ${formatArea(b.area.areaM2)}` : 'Area non definita'} · {b.scenarios.length} scenari · {b.decisions.length} decisioni
               </p>
               <div className="flex flex-wrap gap-2">
-                <Link to={b.area ? lab : `/progetti/${p.id}/area`} className="btn-primary">
+                <Link to={b.area ? lab : `/progetti/${p.id}/area`} className="btn-secondary">
                   Apri
                 </Link>
                 <button

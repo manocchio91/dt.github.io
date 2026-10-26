@@ -27,7 +27,7 @@ test('urbano: previsione di base, banda, soglia, modello avanzato non disponibil
   await expect(page.getByRole('listitem').filter({ hasText: 'intervallo 90%' })).toBeVisible();
 
   await page.getByRole('combobox', { name: /^Modello/ }).selectOption('mistralai/Timestral-5M');
-  await expect(page.getByText('Il modello avanzato non è ancora disponibile.')).toBeVisible();
+  await expect(page.getByText('Il modello avanzato non è disponibile.')).toBeVisible();
   await expect(page.getByTestId('forecast-badge')).toHaveCount(0);
   await page.getByRole('button', { name: 'Mostra la previsione di base' }).click();
   await expect(page.getByTestId('forecast-badge')).toContainText('previsione di base');

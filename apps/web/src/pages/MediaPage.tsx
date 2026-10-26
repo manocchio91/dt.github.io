@@ -22,6 +22,7 @@ import {
 } from '@mdt/domain';
 import { MapView, type MapPoint, type MapPolygon } from '../components/MapView';
 import { Alert, Field, Section } from '../components/ui';
+import { PathGuide } from '../components/guide';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { usePermissions } from '../state/permissions';
 import { useAuth } from '../state/auth';
@@ -390,6 +391,16 @@ export default function MediaPage() {
           Ogni file è collegato a progetto, {isAgri ? 'parcella' : 'area'}, data e autore.
         </p>
       </div>
+      <PathGuide
+        where={{
+          step: 6,
+          what: `le prove collegate ${isAgri ? 'alla parcella e alle sue zone' : 'all’area e agli scenari'}.`,
+          why: 'foto e documenti aiutano a motivare la decisione e a verificarne il risultato nel tempo.',
+          next: isAgri
+            ? { label: 'torna alle zone da controllare', to: `/progetti/${bundle.project.id}/agricolo` }
+            : { label: 'verifica il risultato dopo l’intervento', to: `/progetti/${bundle.project.id}/verifica` },
+        }}
+      />
 
       {offlineInOrg && (
         <Alert tone="warn" title="Connessione assente">
@@ -406,7 +417,7 @@ export default function MediaPage() {
       {remote && online && pendingOrg.length > 0 && perms.canEdit && (
         <Alert tone="warn" title={`${pendingOrg.length} file in attesa di sincronizzazione`}>
           <p>Sono stati salvati mentre la rete non c’era. Vuoi caricarli ora nell’archivio di {current?.organizationName}?</p>
-          <button type="button" className="btn-primary mt-2" onClick={() => syncLocal(pendingOrg)}>
+          <button type="button" className="btn-secondary mt-2" onClick={() => syncLocal(pendingOrg)}>
             Sincronizza ora
           </button>
         </Alert>
@@ -437,7 +448,7 @@ export default function MediaPage() {
               JPEG, PNG, WebP o PDF, fino a {formatBytes(DEFAULT_MAX_BYTES)}. Le foto HEIC non sono ancora supportate. I dati EXIF e la posizione GPS vengono rimossi prima del salvataggio. Nei PDF i metadati (autore, software) non vengono rimossi; PDF con JavaScript, allegati o cifratura sono rifiutati. Nessuna scansione antivirus.
             </p>
             <div className="mt-3 flex flex-wrap justify-center gap-2">
-              <button type="button" className="btn-primary" onClick={() => cameraInput.current?.click()}>
+              <button type="button" className="btn-secondary" onClick={() => cameraInput.current?.click()}>
                 Scatta una foto
               </button>
               <button type="button" className="btn-secondary" onClick={() => fileInput.current?.click()}>

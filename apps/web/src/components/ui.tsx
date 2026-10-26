@@ -77,6 +77,58 @@ export function LevelPill({ level, prefix }: { level: string; prefix?: string })
   );
 }
 
+type DecisionState = 'Regolare' | 'Attenzione' | 'Critico';
+
+const DECISION_STATE_STYLE: Record<DecisionState, string> = {
+  Regolare: 'border-leaf-600 bg-leaf-100 text-leaf-800',
+  Attenzione: 'border-ochre-500 bg-ochre-100 text-ochre-800',
+  Critico: 'border-alert-800 bg-alert-100 text-alert-800',
+};
+
+/** Sintesi comune ai due percorsi: prima la situazione, poi gli strumenti di lavoro. */
+export function DecisionOverview({
+  subject,
+  state,
+  parameter,
+  outlook,
+  source,
+  updated,
+  nextStep,
+}: {
+  subject: string;
+  state: DecisionState;
+  parameter: string;
+  outlook: string;
+  source: string;
+  updated: string;
+  nextStep: string;
+}) {
+  return (
+    <section className="card space-y-3" aria-labelledby="decision-overview-title" data-testid="decision-overview">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-bold tracking-wide text-sand-600 uppercase">Situazione attuale</p>
+          <h2 id="decision-overview-title" className="text-xl font-extrabold text-petrol-900">{subject}</h2>
+        </div>
+        <span className={`rounded-lg border-2 px-3 py-1 text-sm font-extrabold ${DECISION_STATE_STYLE[state]}`}>
+          {state}
+        </span>
+      </div>
+      <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[10rem_1fr]">
+        <dt className="font-semibold text-sand-600">Parametro principale</dt>
+        <dd>{parameter}</dd>
+        <dt className="font-semibold text-sand-600">Andamento previsto</dt>
+        <dd>{outlook}</dd>
+        <dt className="font-semibold text-sand-600">Fonte</dt>
+        <dd>{source}</dd>
+        <dt className="font-semibold text-sand-600">Aggiornato</dt>
+        <dd>{updated}</dd>
+      </dl>
+      <p className="rounded bg-petrol-100 p-2 text-sm text-petrol-900"><strong>Prossimo passo:</strong> {nextStep}</p>
+    </section>
+  );
+}
+
 export const GLOSSARY: Record<string, string> = {
   baseline:
     'Situazione di riferimento prima dell’intervento (area, periodo, ora, dati). Una volta salvata non si modifica: ogni variazione crea una nuova versione.',

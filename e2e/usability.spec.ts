@@ -121,7 +121,7 @@ test('demo senza registrazione, senza Supabase e senza Open-Meteo: messaggi semp
   await page.getByRole('link', { name: 'Previsioni (Beta)' }).click();
   await expect(page.getByTestId('forecast-badge')).toContainText('previsione di base');
   await page.getByRole('combobox', { name: /^Modello/ }).selectOption('mistralai/Timestral-5M');
-  await expect(page.getByText('Il modello avanzato non è ancora disponibile.')).toBeVisible();
+  await expect(page.getByText('Il modello avanzato non è disponibile.')).toBeVisible();
   await expect(page.getByTestId('forecast-badge')).toHaveCount(0);
   await expect(page.locator('main')).not.toContainText(/Timestral-5M \[|bdd20cf/);
   await page.getByRole('button', { name: 'Mostra la previsione di base' }).click();

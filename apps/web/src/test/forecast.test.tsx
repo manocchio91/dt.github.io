@@ -84,8 +84,8 @@ describe('F31 — Previsioni nel caso urbano (Campobasso)', () => {
     open(urban);
     await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
     fireEvent.change(screen.getByLabelText('Modello'), { target: { value: 'mistralai/Timestral-5M' } });
-    expect(await screen.findByText('Il modello avanzato non è ancora disponibile.', { selector: 'p.font-bold' })).toBeTruthy();
-    expect(screen.getByText('Puoi consultare la previsione di base.')).toBeTruthy();
+    expect(await screen.findByText('Il modello avanzato non è disponibile.', { selector: 'p.font-bold' })).toBeTruthy();
+    expect(screen.getByText('Puoi continuare con la previsione di base.')).toBeTruthy();
     expect(screen.getByText('Motore Timestral non configurato', { selector: 'details p' })).toBeTruthy();
     expect(screen.queryByTestId('forecast-badge')).toBeNull();
     expect(screen.queryByText('Valori previsti ora per ora')).toBeNull();
@@ -205,7 +205,7 @@ describe('F31 — Previsioni nel caso urbano (Campobasso)', () => {
       vi.stubGlobal('fetch', spy);
       open(urban);
       await chooseHumidityAndAdvanced();
-      expect(await screen.findByText('Il modello avanzato non è ancora disponibile.', { selector: 'p.font-bold' })).toBeTruthy();
+      expect(await screen.findByText('Il modello avanzato non è disponibile.', { selector: 'p.font-bold' })).toBeTruthy();
       expect(spy).not.toHaveBeenCalled();
     });
   });
@@ -269,7 +269,7 @@ describe('Previsioni — modalità guidata (Audit Anno Luce)', () => {
     const options = [...(screen.getByLabelText('Modello') as HTMLSelectElement).options].map((o) => o.textContent);
     expect(options).toEqual(['Previsione di base', 'Modello avanzato (Beta)']);
     fireEvent.change(screen.getByLabelText('Modello'), { target: { value: 'mistralai/Timestral-5M' } });
-    expect(await screen.findByText('Il modello avanzato non è ancora disponibile.')).toBeTruthy();
+    expect(await screen.findByText('Il modello avanzato non è disponibile.')).toBeTruthy();
     expect(screen.queryByTestId('forecast-summary')).toBeNull();
     expect(screen.getByText(/Beta da validare — Motore Timestral non configurato/)).toBeTruthy(); // solo nei dettagli tecnici
   });

@@ -47,7 +47,7 @@ const GUIDED_MODEL_LABEL: Partial<Record<ModelChoice, string>> = {
   'mistralai/Timestral-5M': 'Modello avanzato (Beta)',
 };
 
-export const ADVANCED_UNAVAILABLE = { title: 'Il modello avanzato non è ancora disponibile.', text: 'Puoi consultare la previsione di base.' };
+export const ADVANCED_UNAVAILABLE = { title: 'Il modello avanzato non è disponibile.', text: 'Puoi continuare con la previsione di base.' };
 /** Servizio configurato ma spento o non raggiungibile in questo momento. */
 export const ADVANCED_DOWN = { title: 'Il modello avanzato non è disponibile.', text: 'Puoi continuare con la previsione di base.' };
 /** Archivio collegato ma storico meteo sotto il minimo: il modello avanzato non parte. */

@@ -34,7 +34,7 @@ export function AuthPage() {
         <h1 className="text-2xl font-extrabold text-petrol-900">Accesso e organizzazione</h1>
         <Section title="Archivio condiviso" aside={<StatusBadge status="non_disponibile" />}>
           <p className="text-sm">
-            Supabase non è configurato per questa installazione: i progetti restano solo in questo browser. Per attivare account, organizzazioni e permessi, l’amministratore deve impostare
+            L’archivio condiviso non è configurato per questa installazione: i progetti restano solo in questo browser. Per attivare account, organizzazioni e permessi, l’amministratore deve impostare
             <code className="mx-1">VITE_SUPABASE_URL</code> e <code className="mx-1">VITE_SUPABASE_PUBLISHABLE_KEY</code> e applicare le migrazioni in <code>supabase/migrations</code>.
           </p>
         </Section>
@@ -103,7 +103,7 @@ export function AuthPage() {
               {mode === 'login' ? 'Accedi' : mode === 'signup' ? 'Crea account' : 'Invia link'}
             </button>
           </form>
-          <p className="text-xs text-sand-600">Raccogliamo solo email e nome visualizzato. La sessione è gestita da Supabase Auth.</p>
+          <p className="text-xs text-sand-600">Raccogliamo solo email e nome visualizzato. L’accesso è protetto e la sessione resta privata.</p>
         </Section>
       ) : (
         <>
@@ -158,7 +158,7 @@ export function AuthPage() {
           {auth.current && (
             <Section title={`Archivio di ${auth.current.organizationName}`}>
               <p className="text-sm">
-                I progetti sono salvati nel database dell’organizzazione e visibili ai suoi membri secondo il ruolo. Ogni modifica è versionata; baseline, decisioni e registro di audit sono protetti
+                I progetti sono condivisi con i membri dell’organizzazione secondo il ruolo. Ogni modifica è versionata; dati di riferimento, decisioni e registro delle attività sono protetti
                 lato server.
               </p>
             </Section>

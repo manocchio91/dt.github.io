@@ -28,7 +28,7 @@ import {
 } from '@mdt/domain';
 import { DataBadge, formatNumber } from '../components/DataBadge';
 import { coolingColor, CoolingLegend, MapView, type MapPoint, type MapPolygon } from '../components/MapView';
-import { Alert, DemoRibbon, Field, Section, Term } from '../components/ui';
+import { Alert, DecisionOverview, DemoRibbon, Field, Section, Term } from '../components/ui';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { CanEdit, usePermissions } from '../state/permissions';
 import { useWorkMode } from '../state/preferences';
@@ -223,6 +223,10 @@ export default function UrbanLabPage() {
 
   const blocking = run?.checks.filter((c) => c.severity === 'errore') ?? [];
   const warnings = run?.checks.filter((c) => c.severity === 'avviso') ?? [];
+  const urbanState = blocking.length > 0 ? 'Critico' : !baseline || !run || warnings.length > 0 ? 'Attenzione' : 'Regolare';
+  const air = baseline?.values.find((v) => v.key === 't_air_ref_hour');
+  const urbanParameter = air?.value == null ? 'Temperatura dell’aria non ancora disponibile' : `${air.label}: ${formatNumber(air.value, air.unit)}`;
+  const urbanUpdated = run?.computedAt ?? baseline?.lockedAt;
 
   return (
     <div className="space-y-4">
@@ -253,6 +257,15 @@ export default function UrbanLabPage() {
           { done: bundle.runs.some((r) => scenarios.some((s) => s.id === r.scenarioId) && r.outputs.length > 0), label: 'calcola lo scenario', anchor: 'u7' },
           { done: scenarios.length >= 2, label: 'crea un secondo scenario da confrontare', anchor: 'u5' },
         ]}
+      />
+      <DecisionOverview
+        subject={area?.name ?? bundle.project.name}
+        state={urbanState}
+        parameter={urbanParameter}
+        outlook={run ? (blocking.length ? 'Il calcolo segnala dati da correggere prima del confronto.' : warnings.length ? 'Lo scenario richiede una verifica prima del confronto.' : 'Lo scenario è pronto per il confronto.') : 'Calcola almeno uno scenario per vedere l’andamento previsto.'}
+        source={baseline?.isDemo ? 'SIMULATO' : baseline ? 'DATO OPEN-METEO' : 'Fonte non ancora disponibile'}
+        updated={urbanUpdated ? new Date(urbanUpdated).toLocaleString('it-IT', { timeZone: 'Europe/Rome' }) : 'Non ancora disponibile'}
+        nextStep={run ? 'Confronta gli scenari e motiva la decisione.' : 'Completa la baseline e calcola uno scenario.'}
       />
       <WeatherPanel bundle={bundle} />
 
@@ -604,7 +617,7 @@ export default function UrbanLabPage() {
                       );
                     })}
                   </div>
-                  <button type="button" className="btn-primary" onClick={() => setPlacing(true)} disabled={placing}>
+                  <button type="button" className="btn-secondary" onClick={() => setPlacing(true)} disabled={placing}>
                     {INTERVENTION_GEOMETRY[iType] === 'points' ? 'Posiziona i punti sulla mappa' : 'Disegna il poligono sulla mappa'}
                   </button>
                   <details className="text-sm" open={mode === 'tecnica'}>
@@ -646,7 +659,7 @@ export default function UrbanLabPage() {
               aside={
                 perms.canEdit && (
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" className="btn-primary" onClick={() => calc([scenario])} disabled={scenario.interventions.length === 0}>
+                  <button type="button" className="btn-secondary" onClick={() => calc([scenario])} disabled={scenario.interventions.length === 0}>
                     Calcola {scenario.label}
                   </button>
                   <button type="button" className="btn-secondary" onClick={() => calc(scenarios.filter((s) => s.interventions.length > 0))}>
@@ -718,7 +731,7 @@ export default function UrbanLabPage() {
           {scenarios.length >= 2 && (
             <Section id="u8" step={8} title="Confronto, costi e decisione">
               <p className="text-sm">Confronta gli scenari affiancati, valuta costi, acqua, manutenzione, vincoli e incertezza, poi motiva la scelta.</p>
-              <Link to={`/progetti/${bundle.project.id}/confronto`} className="btn-primary">
+              <Link to={`/progetti/${bundle.project.id}/confronto`} className="btn-secondary">
                 Apri il confronto
               </Link>
             </Section>

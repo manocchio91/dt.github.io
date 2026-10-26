@@ -246,7 +246,7 @@ export default function AreaPage() {
               <input id="aname" className="input" value={draftName} onChange={(e) => setDraftName(e.target.value)} />
             </Field>
             <div className="flex gap-2">
-              <button type="button" className="btn-primary" disabled={!validation.valid} onClick={saveArea}>
+              <button type="button" className="btn-secondary" disabled={!validation.valid} onClick={saveArea}>
                 Salva area
               </button>
               <button type="button" className="btn-ghost" onClick={() => setDraft(null)}>
@@ -296,7 +296,7 @@ export default function AreaPage() {
                   <input id="zname" className="input" value={zoneName} onChange={(e) => setZoneName(e.target.value)} placeholder={`Zona ${String.fromCharCode(65 + zones.length)}`} />
                 </Field>
                 <div className="flex gap-2">
-                  <button type="button" className="btn-primary" disabled={!zoneValidation.valid} onClick={saveZone}>
+                  <button type="button" className="btn-secondary" disabled={!zoneValidation.valid} onClick={saveZone}>
                     Salva sottozona
                   </button>
                   <button type="button" className="btn-ghost" onClick={() => setZoneDraft(null)}>

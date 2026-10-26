@@ -354,7 +354,7 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
               <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Orizzonte della previsione oraria">
                 <span className="text-sm font-semibold">Previsione oraria:</span>
                 {([24, 72] as const).map((h) => (
-                  <button key={h} type="button" className={h === horizon ? 'btn-primary' : 'btn-secondary'} aria-pressed={h === horizon} onClick={() => setHorizon(h)}>
+                  <button key={h} type="button" className={`btn-secondary ${h === horizon ? 'border-petrol-700 bg-petrol-700 text-white' : ''}`} aria-pressed={h === horizon} onClick={() => setHorizon(h)}>
                     {h} ore
                   </button>
                 ))}

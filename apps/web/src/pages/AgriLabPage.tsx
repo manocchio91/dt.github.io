@@ -23,7 +23,7 @@ import {
 } from '@mdt/domain';
 import { ClassChip, DataBadge } from '../components/DataBadge';
 import { MapView, type MapPolygon } from '../components/MapView';
-import { Alert, DemoRibbon, Field, LevelPill, Section, Term } from '../components/ui';
+import { Alert, DecisionOverview, DemoRibbon, Field, LevelPill, Section, Term } from '../components/ui';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { todayRome } from '../state/store';
 import { usePermissions } from '../state/permissions';
@@ -171,13 +171,15 @@ export default function AgriLabPage() {
   };
 
   const snapshotZone = lastDecision?.assessmentSnapshot && assessments.find((a) => a.zoneId === lastDecision.assessmentSnapshot!.zoneId);
+  const agriState = first?.priority === 'alta' ? 'Critico' : first?.priority === 'media' || !first ? 'Attenzione' : 'Regolare';
+  const agriParameter = first?.components[0] ? `${first.components[0].label}: ${first.components[0].level}` : 'Dati ancora insufficienti';
 
   return (
     <div className="space-y-4">
       <div>
         <p className="text-sm text-sand-600">{bundle.project.name}</p>
         <h1 className="text-2xl font-extrabold text-petrol-900">Decision Lab agricolo</h1>
-        <Link to={`/progetti/${bundle.project.id}/previsioni`} className="btn-secondary mt-2">
+        <Link to={`/progetti/${bundle.project.id}/previsioni`} className="btn-primary mt-2">
           Previsioni (Beta)
         </Link>
       </div>
@@ -193,6 +195,15 @@ export default function AgriLabPage() {
           { done: !!agri.weather, label: 'aggiorna i dati meteo', anchor: 'a4' },
           { done: bundle.decisions.some((d) => d.sector === 'agriculture'), label: 'confronta le misure e registra la decisione', anchor: 'a7' },
         ]}
+      />
+      <DecisionOverview
+        subject={bundle.area.name}
+        state={agriState}
+        parameter={agriParameter}
+        outlook={first ? `${first.zoneName}: ${first.motivation}` : 'Completa i dati della parcella per valutare le zone.'}
+        source={bundle.project.mode === 'demo' ? 'SIMULATO' : agri.weather ? 'DATO OPEN-METEO e osservazioni in campo' : 'Osservazioni in campo; meteo non disponibile'}
+        updated={agri.today ? new Date(`${agri.today}T12:00:00`).toLocaleDateString('it-IT', { timeZone: 'Europe/Rome' }) : 'Non ancora disponibile'}
+        nextStep={first ? 'Osserva la zona indicata o consulta l’agronomo prima di intervenire.' : 'Completa i dati mancanti senza assumere valori.'}
       />
       <WeatherPanel bundle={bundle} />
 
@@ -236,7 +247,7 @@ export default function AgriLabPage() {
         aside={
           canEdit && draft && (
             <div className="flex gap-2">
-              <button type="button" className="btn-primary" onClick={async () => { await saveAgri({ setup: draft.setup, zones: draft.zones }, 'Input agronomici aggiornati'); setDraft(null); }}>
+              <button type="button" className="btn-secondary" onClick={async () => { await saveAgri({ setup: draft.setup, zones: draft.zones }, 'Input agronomici aggiornati'); setDraft(null); }}>
                 Salva input
               </button>
               <button type="button" className="btn-ghost" onClick={() => setDraft(null)}>
@@ -382,7 +393,7 @@ export default function AgriLabPage() {
               </Field>
               <button
                 type="button"
-                className="btn-primary"
+                className="btn-secondary"
                 disabled={!agri.setup.phenology.stage || !confirmer.trim()}
                 onClick={() =>
                   saveAgri(
@@ -496,7 +507,7 @@ export default function AgriLabPage() {
             </>
           )}
           <div className="flex items-end">
-            <button type="button" className="btn-primary" onClick={addObservation}>
+            <button type="button" className="btn-secondary" onClick={addObservation}>
               Registra
             </button>
           </div>
@@ -662,7 +673,7 @@ export default function AgriLabPage() {
           <Field label="Motivazione" htmlFor="drat">
             <textarea id="drat" className="input" rows={3} value={dec.rationale} onChange={(e) => setDec({ ...dec, rationale: e.target.value })} />
           </Field>
-          <button type="button" className="btn-primary" onClick={saveDecision}>
+          <button type="button" className="btn-secondary" onClick={saveDecision}>
             Registra decisione
           </button>
         </Section>

@@ -46,3 +46,23 @@ test('smartphone: la guida riprende dalla domanda lasciata', async ({ page }) =>
   await page.goto(LOCAL + '/benvenuto');
   await expectQuestion(page, 'In quale ambito lavori?');
 });
+
+for (const width of [320, 375, 390]) {
+  test(`percorsi essenziali a ${width} px: sintesi, una CTA primaria e nessuno scorrimento orizzontale`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 812 });
+    await page.goto(LOCAL + '/');
+    await page.getByRole('button', { name: 'Apri la demo urbana' }).click();
+    await expect(page.getByTestId('decision-overview')).toContainText(/Regolare|Attenzione|Critico/);
+    await expect(page.getByTestId('decision-overview')).toContainText('Prossimo passo:');
+    await expect(page.locator('main .btn-primary:visible')).toHaveCount(1);
+    await expectNoHorizontalScroll(page);
+
+    await page.goto(LOCAL + '/');
+    await page.getByRole('button', { name: 'Apri la demo agricola' }).click();
+    await expect(page.getByTestId('decision-overview')).toContainText(/Regolare|Attenzione|Critico/);
+    await expect(page.getByTestId('decision-overview')).toContainText(/agronomo/i);
+    await expect(page.locator('main .btn-primary:visible')).toHaveCount(1);
+    await expect(page.locator('main')).not.toContainText(/\b(Irriga|Concima|Tratta la pianta)\b/i);
+    await expectNoHorizontalScroll(page);
+  });
+}
