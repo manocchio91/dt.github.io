@@ -1,18 +1,19 @@
 # 15 — Previsioni probabilistiche (F31) e integrazione Timestral
 
-> **Stato: Beta da validare.** Implementato e testato in locale (dominio, servizio con motore
-> finto, database PGlite, interfaccia, E2E). **Timestral non è stato eseguito** in questo
-> ambiente (né Python né Docker disponibili): l'interfaccia mostra **"Motore Timestral non
-> configurato"** e non sostituisce mai la previsione con valori casuali. Il backtest riguarda
-> solo le baseline. Nessuna validazione con utenti o esperti.
+> **Stato: Beta da validare.** Dal 25/10/2026 **Timestral-5M è eseguito davvero** in un container
+> Docker locale (CPU) e confrontato con le baseline (§13). Il sito pubblico **non** è collegato:
+> senza servizio raggiungibile l'interfaccia mostra il messaggio di modello avanzato non
+> disponibile e non sostituisce mai la previsione con valori inventati. Nessuna validazione con
+> utenti o esperti.
 
 | Livello | Stato |
 | --- | --- |
-| Implementato | contratto, adapter, baseline, servizio, tabelle, UI, backtest |
-| Testato in locale | sì: `packages/domain/src/forecast/forecast.test.ts`, `supabase/tests/forecast.test.ts`, `apps/web/src/test/forecast.test.tsx`, `e2e/forecast*.spec.ts` |
-| Testato su servizio reale | **no**: test del servizio Python e spike 5M/28M da eseguire (vedi §4) |
+| Implementato | contratto, adapter, baseline, servizio (Docker), vincolo fisico dell’umidità, proxy `forecast-proxy`, tabelle, UI, backtest |
+| Testato in locale | sì: test Python (43), `forecast.test.ts`, `supabase/tests/forecast*.test.ts`, `apps/web/src/test/forecast.test.tsx`, `e2e/forecast*.spec.ts`, `e2e/timestral*.spec.ts` |
+| Testato su servizio reale | sì, **solo in locale**: container Timestral-5M reale, Supabase di staging, Open-Meteo reale (report `docs/reports/timestral-runtime-2026-10-25.md`) |
+| Pubblicato | no (né container né proxy né sito) |
 | Validato con utenti | no |
-| Validato scientificamente | no: serve backtest di Timestral contro le baseline e confronto con osservazioni in campo |
+| Validato scientificamente | no: backtest su rianalisi (stime da modello) e una sola verifica di 24 h; servono sensori in campo e storico più lungo |
 
 ## 1. Flusso
 
@@ -134,3 +135,65 @@ Aggiunte alla checklist di [14-piano-test-supabase-reale.md](14-piano-test-supab
 F1 registrazione baseline da editor; F2 rifiuto di un'esecuzione Timestral da client; F3 esecuzione
 Timestral dal ruolo di servizio; F4 immutabilità dopo conclusione; F5 isolamento tra organizzazioni;
 F6 soglie versionate; F7 avvisi con ex-post; F8 audit visibile solo all'admin.
+
+## 13. Esecuzione reale in Docker (25/10/2026)
+
+**Modello:** `mistralai/Timestral-5M` @ `bdd20cfc15a3fea0e4cb5ccef37f8d3ca7aa335f` (pesi 20 MB, licenza
+Modified MIT, nessuna accettazione manuale richiesta), codice `timestral` @ `a534bdb` (Apache-2.0).
+Il 28M resta un'opzione di confronto: non scaricato né avviato.
+
+**Container** (`services/forecasting/Dockerfile`, build in due fasi): immagine runtime 1,42 GB (torch
+2.7.0 solo CPU), utente non root, senza git né uv, dipendenze bloccate da `uv.lock`, pesi nel volume
+Docker `mdt-hf` (mai nell'immagine), health check, arresto controllato.
+
+```bash
+docker build --target runtime -t mdt-forecasting:local services/forecasting
+docker run -d --name mdt-forecasting -p 127.0.0.1:8080:8080 --env-file <file locale con FORECAST_SERVICE_TOKEN> \
+  -v mdt-hf:/models --memory 2g --cpus 2 --read-only --tmpfs /tmp --security-opt no-new-privileges --cap-drop ALL mdt-forecasting:local
+```
+
+| Misura (CPU, 2 core, limite 2 GB) | Valore |
+| --- | --- |
+| Avvio con download dei pesi / riavvio offline dalla cache | 19 s / 9 s |
+| Prima previsione / successive / dalla cache | 688 ms / 115–258 ms / 67 ms |
+| RAM a riposo / picco | 296 / 314 MiB |
+| Arresto controllato | 2,1 s |
+| Senza pesi e senza rete | 503 “Motore Timestral non configurato”, nessun valore |
+
+**Backtest walk-forward** (rianalisi Open-Meteo, estate 2025; `docs/reports/backtest-previsioni-2026-10-25.md`):
+Timestral-5M ha MAE e WQL più bassi delle baseline nei tre casi (urbano temperatura 24 h: MAE 1,39
+contro 1,73 °C della persistenza stagionale; agricolo umidità del suolo 72 h: 0,003 contro 0,004;
+agricolo temperatura 48 h: 1,83 contro 2,43 °C) ma la copertura dell'intervallo 80% è sotto il
+nominale in 2 casi su 3 (0,74–0,76). Dati modellati, non misure: non è una validazione.
+
+**Vincolo fisico dell'umidità** (`physical_clipping_v1`, decisione del responsabile): il modello non
+conosce il limite 0–100% e le code alte lo superano (fino a 130,8% nel backtest). Il proxy stabilisce
+i limiti lato server, il servizio riporta mediana e quantili entro 0–100, verifica di nuovo
+l'ordinamento e restituisce i metadati (vincolo applicato, valori corretti, minimo e massimo grezzo,
+metodo, versione dell'adattatore), che il proxy verifica e registra nella provenienza con modello e
+revisione. Il browser non corregge nulla: scarta una risposta fuori limite.
+Effetto (`docs/reports/backtest-umidita-vincolo-2026-10-25.md`): valori corretti 1,6–2,5%, quasi tutti
+nei quantili 95% e 99%; previsioni con almeno una correzione 82–100%; fascia 80% fuori limite nel
+2,5–2,7% delle ore; mediane mai toccate; MAE e copertura 80% invariati, WQL quasi invariato.
+**Il vincolo migliora la plausibilità fisica ma può alterare la calibrazione degli intervalli: non è un
+miglioramento scientifico.** Alternativa da valutare: trasformazione logit/sigmoide (B-172).
+
+**Test reale su Supabase di staging** (`docs/reports/timestral-runtime-2026-10-25.md`, 20/20):
+previsioni urbana (6 variabili) e agricola (8 variabili) registrate tramite il proxy con stato,
+modello, revisione, hash, provenienza, località, 21 quantili e metadati del vincolo; lettore 403,
+esterno 404 e nessuna lettura, nessun client registra previsioni Timestral, esecuzioni immutabili,
+errore isolato, container spento → messaggio semplice e risultati precedenti intatti. Storico: la
+Edge Function conserva ~24 h, sotto il minimo di 72 h; il test integra 7 giorni della stessa cella
+dall'API Open-Meteo (verificati sulle ore in comune). Verifica a posteriori su una sola origine di
+24 h: Timestral migliore delle baseline su umidità e precipitazione, **peggiore della persistenza
+sulla temperatura** (MAE 3,2 contro 1,8 °C), intervalli troppo stretti su temperatura e suolo.
+**Test tecnico completato; accuratezza non ancora validabile per insufficienza dello storico.**
+
+**Interfaccia:** nessuna nuova pagina né voce di menu. Con un risultato reale il badge è
+“STIMATO DA MODELLO — Timestral-5M”; nella guidata, solo se il vincolo è stato applicato, la nota
+“L’intervallo è stato riportato entro i limiti fisici dell’umidità, da 0% a 100%.”; nell’approfondimento
+tecnico vincolo, valori corretti, massimo grezzo, metodo e avviso di calibrazione. Servizio
+configurato ma spento: “Il modello avanzato non è disponibile. Puoi continuare con la previsione di base.”
+
+**Solo in locale:** container, proxy (eseguito come modulo nel test), collegamento. **Pronto per il
+cloud:** immagine, Edge Function `forecast-proxy` (serve un servizio Timestral ospitato, B-175).

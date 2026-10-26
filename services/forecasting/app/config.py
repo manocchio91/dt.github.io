@@ -13,6 +13,8 @@ MODELS: dict[str, str] = {
 }
 TIMESTRAL_CODE_COMMIT = "a534bdbd244d64f3d9d743f46c7bf6fc330ed4ff"
 SCHEMA_VERSION = 1
+# versione dell'adattatore (servizio + post-elaborazione), registrata con ogni previsione
+ADAPTER_VERSION = "mdt-forecasting 0.2.0"
 QUANTILE_LEVELS = (0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5,
                    0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.99)
 

@@ -4,12 +4,14 @@ import { finalizeOnboarding, QUANTILE_LEVELS, seedCampobasso, seedVineyard, TIME
 import ForecastPage from '../pages/ForecastPage';
 import { fakeAuth, fakeSession, localRepo, member, remoteRepo, renderApp } from './utils';
 import type { Repository } from '../state/repository';
+import { clearForecastCache } from '../state/forecast';
 
 let urban: ProjectBundle;
 let agri: ProjectBundle;
 
 beforeEach(() => {
   localStorage.clear();
+  clearForecastCache();
   urban = seedCampobasso(new Date('2026-10-24T08:00:00Z'));
   agri = seedVineyard(new Date('2026-08-20T08:00:00Z'), '2026-08-20');
 });
@@ -59,7 +61,9 @@ describe('F31 — Previsioni nel caso urbano (Campobasso)', () => {
     open(urban);
     const t = within(await screen.findByTestId('backtest-table'));
     expect(t.getByText('Persistenza stagionale (stessa ora del giorno prima)')).toBeTruthy();
-    expect(t.getAllByText(/non eseguito — Motore Timestral non configurato/)).toHaveLength(2);
+    // Timestral-5M eseguito davvero nel backtest; il 28M dichiarato non avviato (confronto successivo)
+    expect(t.getByText('Timestral-5M')).toBeTruthy();
+    expect(t.getAllByText(/non eseguito — non avviato: opzione di confronto successiva/)).toHaveLength(1);
   });
 
   it('grafico navigabile da tastiera con annuncio testuale', async () => {
@@ -101,13 +105,109 @@ describe('F31 — Previsioni nel caso urbano (Campobasso)', () => {
     vi.stubGlobal('fetch', fetchSpy);
     const session = { ...fakeSession(), access_token: 'jwt-di-sessione' } as ReturnType<typeof fakeSession>;
     setTechnicalMode();
-    open(urban, localRepo([urban]), fakeAuth({ session }));
+    open(urban, remoteRepo([urban]), fakeAuth({ session, memberships: [member('editor')], current: member('editor') }));
     await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
     fireEvent.change(screen.getByLabelText('Modello'), { target: { value: 'mistralai/Timestral-5M' } });
-    await waitFor(() => expect(screen.getByTestId('forecast-badge').textContent).toMatch(/STIMATO DA MODELLO — Timestral 5M \[bdd20cf\]/));
+    await waitFor(() => expect(screen.getByTestId('forecast-badge').textContent).toMatch(/STIMATO DA MODELLO — Timestral-5M \[bdd20cf\]/));
     const [url, init] = fetchSpy.mock.calls[0]!;
     expect(url).toBe('https://proxy.example/forecast/v1/forecast');
     expect((init.headers as Record<string, string>).authorization).toBe('Bearer jwt-di-sessione');
+    // il proxy riceve progetto, contesto e variabile; nessun limite fisico deciso dal browser
+    const sent = JSON.parse(init.body as string) as { mdt: { project_id: string; context: string; variables: { name: string }[] }; physical_bounds?: unknown };
+    expect(sent.mdt).toMatchObject({ project_id: urban.project.id, context: 'urbano', variables: [{ name: 'temperatura_aria' }] });
+    expect(sent.physical_bounds).toBeUndefined();
+  });
+
+  describe('Timestral reale tramite proxy: badge, vincolo fisico dell’umidità, ripiego', () => {
+    const editor = () => fakeAuth({ session: { ...fakeSession(), access_token: 'jwt' } as ReturnType<typeof fakeSession>, memberships: [member('editor')], current: member('editor') });
+    const constraint = (applied: boolean) => ({ physical_constraint_applied: applied, physical_min: 0, physical_max: 100, adjusted_values_count: applied ? 7 : 0, total_values: 504, maximum_raw_value: applied ? 112.4 : 96.1, minimum_raw_value: 30.2, method: 'physical_clipping_v1', adapter_version: 'mdt-forecasting 0.2.0' });
+    const proxy = (opts: { center?: number; constraints?: unknown[] | null; status?: number } = {}) =>
+      vi.fn(async (_url: string, init: RequestInit) => {
+        if (opts.status) return { ok: false, status: opts.status, json: async () => ({ detail: 'Il modello avanzato non è disponibile. Puoi continuare con la previsione di base.' }) } as Response;
+        const body = JSON.parse(init.body as string) as { prediction_length: number };
+        const q = Array.from({ length: body.prediction_length }, () => QUANTILE_LEVELS.map((l) => (opts.center ?? 25) + (l - 0.5) * 8));
+        return { ok: true, status: 200, json: async () => ({ schema_version: 1, model: 'mistralai/Timestral-5M', revision: TIMESTRAL_MODELS['mistralai/Timestral-5M'].revision, quantile_levels: QUANTILE_LEVELS, quantiles: [[q]], median: [[q.map((r) => r[10])]], inference_ms: 40, warnings: [], adapter_version: 'mdt-forecasting 0.2.0', ...(opts.constraints ? { constraints: opts.constraints } : {}), run_id: 'run-1' }) } as Response;
+      });
+    const chooseHumidityAndAdvanced = async () => {
+      await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
+      fireEvent.change(screen.getByLabelText('Grandezza'), { target: { value: 'umidita_relativa' } });
+      fireEvent.change(screen.getByLabelText('Modello'), { target: { value: 'mistralai/Timestral-5M' } });
+    };
+
+    it('guidata: badge “STIMATO DA MODELLO — Timestral-5M”, nota breve se il vincolo è applicato, nessun dettaglio tecnico in primo piano', async () => {
+      vi.stubEnv('VITE_FORECAST_URL', 'https://proxy.example/forecast');
+      vi.stubGlobal('fetch', proxy({ center: 92, constraints: [constraint(true)] }));
+      open(urban, remoteRepo([urban]), editor());
+      await chooseHumidityAndAdvanced();
+      await waitFor(() => expect(screen.getByTestId('forecast-badge').textContent).toMatch(/^.?STIMATO DA MODELLO — Timestral-5M:/));
+      expect(screen.getByTestId('forecast-constraint-note').textContent).toBe('L’intervallo è stato riportato entro i limiti fisici dell’umidità, da 0% a 100%.');
+      expect(screen.getByTestId('forecast-technical')).not.toHaveAttribute('open');
+      expect(screen.getByTestId('forecast-constraint-tech')).not.toBeVisible();
+    });
+
+    it('tecnica: nell’approfondimento vincolo applicato, valori corretti, massimo grezzo, metodo e avviso di calibrazione', async () => {
+      vi.stubEnv('VITE_FORECAST_URL', 'https://proxy.example/forecast');
+      vi.stubGlobal('fetch', proxy({ center: 92, constraints: [constraint(true)] }));
+      setTechnicalMode();
+      open(urban, remoteRepo([urban]), editor());
+      await chooseHumidityAndAdvanced();
+      const tech = await screen.findByTestId('forecast-constraint-tech');
+      expect(tech.textContent).toMatch(/Applicato: 7 valori su 504 riportati entro 0–100/);
+      expect(tech.textContent).toMatch(/massimo grezzo 112(,4)?\s?%/);
+      expect(tech.textContent).toMatch(/physical_clipping_v1 \(mdt-forecasting 0\.2\.0\)/);
+      expect(tech.textContent).toMatch(/può modificare la calibrazione probabilistica/);
+    });
+
+    it('vincolo non necessario: nessuna nota nella guidata', async () => {
+      vi.stubEnv('VITE_FORECAST_URL', 'https://proxy.example/forecast');
+      vi.stubGlobal('fetch', proxy({ center: 60, constraints: [constraint(false)] }));
+      open(urban, remoteRepo([urban]), editor());
+      await chooseHumidityAndAdvanced();
+      await waitFor(() => expect(screen.getByTestId('forecast-badge').textContent).toMatch(/Timestral-5M/));
+      expect(screen.queryByTestId('forecast-constraint-note')).toBeNull();
+    });
+
+    it('nessun dato non plausibile mostrato: umidità oltre 100% nella risposta → risultato scartato', async () => {
+      vi.stubEnv('VITE_FORECAST_URL', 'https://proxy.example/forecast');
+      vi.stubGlobal('fetch', proxy({ center: 99, constraints: null }));
+      open(urban, remoteRepo([urban]), editor());
+      await chooseHumidityAndAdvanced();
+      expect(await screen.findByText('Previsione non disponibile in questo momento', {}, { timeout: 10_000 })).toBeTruthy();
+      expect(screen.queryByTestId('forecast-badge')).toBeNull();
+    });
+
+    it('badge Timestral solo per esecuzioni reali: la previsione di base resta “previsione di base”', async () => {
+      vi.stubEnv('VITE_FORECAST_URL', 'https://proxy.example/forecast');
+      const spy = proxy();
+      vi.stubGlobal('fetch', spy);
+      open(urban, remoteRepo([urban]), editor());
+      const badge = await screen.findByTestId('forecast-badge', {}, { timeout: 10_000 });
+      expect(badge.textContent).toMatch(/previsione di base/);
+      expect(badge.textContent).not.toMatch(/Timestral/);
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('servizio configurato ma spento: messaggio semplice e ripiego sulla previsione di base', async () => {
+      vi.stubEnv('VITE_FORECAST_URL', 'https://proxy.example/forecast');
+      vi.stubGlobal('fetch', proxy({ status: 503 }));
+      open(urban, remoteRepo([urban]), editor());
+      await chooseHumidityAndAdvanced();
+      expect(await screen.findByText('Il modello avanzato non è disponibile.', { selector: 'p.font-bold' })).toBeTruthy();
+      expect(screen.getByText('Puoi continuare con la previsione di base.')).toBeTruthy();
+      expect(screen.queryByTestId('forecast-badge')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Mostra la previsione di base' }));
+      expect((await screen.findByTestId('forecast-badge')).textContent).toMatch(/previsione di base/);
+    });
+
+    it('ospite (progetto solo nel browser): il modello avanzato non chiama il proxy', async () => {
+      vi.stubEnv('VITE_FORECAST_URL', 'https://proxy.example/forecast');
+      const spy = proxy();
+      vi.stubGlobal('fetch', spy);
+      open(urban);
+      await chooseHumidityAndAdvanced();
+      expect(await screen.findByText('Il modello avanzato non è ancora disponibile.', { selector: 'p.font-bold' })).toBeTruthy();
+      expect(spy).not.toHaveBeenCalled();
+    });
   });
 
   it('registra la previsione nel progetto (dossier) e poi aggiunge il confronto ex-post', async () => {

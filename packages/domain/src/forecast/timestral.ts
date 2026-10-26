@@ -1,6 +1,6 @@
 import { checkQuantiles } from './metrics';
 import { assertValidRequest, futureTimestamps, requestHash } from './validate';
-import { ForecastUnavailableError, QUANTILE_LEVELS, type ForecastModelMeta, type ForecastRequest, type ForecastResult, type TimeSeriesForecastAdapter } from './types';
+import { ForecastUnavailableError, QUANTILE_LEVELS, type ForecastModelMeta, type ForecastRequest, type ForecastResult, type PhysicalConstraintReport, type TimeSeriesForecastAdapter } from './types';
 
 /**
  * Adapter verso il servizio di inferenza Timestral (services/forecasting).
@@ -17,11 +17,13 @@ export const TIMESTRAL_MODELS = {
 export type TimestralModelId = keyof typeof TIMESTRAL_MODELS;
 export const TIMESTRAL_CODE_COMMIT = 'a534bdbd244d64f3d9d743f46c7bf6fc330ed4ff';
 export const FORECAST_SCHEMA_VERSION = 1;
+/** Limiti fisici delle grandezze vincolate dal servizio (stessa tabella del proxy, PHYSICAL_BOUNDS). */
+export const PHYSICAL_LIMITS: Record<string, [number, number]> = { umidita_relativa: [0, 100], relative_humidity_2m: [0, 100] };
 
 export function timestralMeta(model: TimestralModelId): ForecastModelMeta {
   return {
     id: model,
-    name: `Timestral ${model.split('-').pop()}`,
+    name: model.split('/').pop()!, // "Timestral-5M": nome ufficiale, uguale nel badge e nei dettagli
     version: '1.0.0',
     revision: TIMESTRAL_MODELS[model].revision,
     kind: 'timestral',
@@ -45,6 +47,11 @@ export interface TimestralConfig {
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
   cache?: Map<string, ForecastResult>;
+  /**
+   * Metadati per il proxy (progetto, contesto, variabili, provenienza) inviati come campo `mdt`:
+   * il proxy li usa per autorizzare e registrare l'esecuzione e li toglie prima del servizio.
+   */
+  envelope?: (req: ForecastRequest) => Record<string, unknown> | null;
 }
 
 interface ServiceResponse {
@@ -56,6 +63,9 @@ interface ServiceResponse {
   median: number[][][];
   inference_ms: number;
   warnings: string[];
+  adapter_version?: string;
+  constraints?: (PhysicalConstraintReport | null)[];
+  run_id?: string;
 }
 
 export class TimestralForecastAdapter implements TimeSeriesForecastAdapter {
@@ -93,6 +103,7 @@ export class TimestralForecastAdapter implements TimeSeriesForecastAdapter {
       past_covariates: req.pastCovariates.length ? [req.pastCovariates.map((c) => c.values)] : null,
       known_covariates: req.knownCovariates.length ? [req.knownCovariates.map((c) => c.values)] : null,
       input_hash: hash,
+      ...(this.cfg.envelope ? { mdt: this.cfg.envelope(req) } : {}),
     };
     let res: Response;
     try {
@@ -124,6 +135,11 @@ export class TimestralForecastAdapter implements TimeSeriesForecastAdapter {
     const quantiles = out.quantiles[0]!;
     const problems = median.flatMap((m, v) => checkQuantiles(quantiles[v]!, m, out.quantile_levels));
     if (problems.length) throw new Error(`Risposta non valida: ${problems.slice(0, 3).join(' ')}`);
+    // difesa in profondità: il vincolo si applica sul server; qui una risposta fuori limite si scarta, non si corregge
+    req.targets.forEach((t, v) => {
+      const b = PHYSICAL_LIMITS[t.variable];
+      if (b && quantiles[v]!.some((row) => row.some((x) => x < b[0] - 1e-9 || x > b[1] + 1e-9))) throw new Error(`Risposta non valida: ${t.variable} fuori dai limiti fisici`);
+    });
     const result: ForecastResult = {
       model: this.meta,
       timestamps: futureTimestamps(req.targets[0]!.timestamps.at(-1)!, req.horizon),
@@ -134,6 +150,9 @@ export class TimestralForecastAdapter implements TimeSeriesForecastAdapter {
       warnings: out.warnings,
       dataClass: 'STIMATO_DA_MODELLO',
       inputHash: hash,
+      ...(out.constraints ? { constraints: out.constraints } : {}),
+      ...(out.adapter_version ? { adapterVersion: out.adapter_version } : {}),
+      ...(out.run_id ? { runId: out.run_id } : {}),
     };
     this.cache.set(hash, result);
     return result;

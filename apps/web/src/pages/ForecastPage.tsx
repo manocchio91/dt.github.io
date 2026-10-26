@@ -31,6 +31,7 @@ import { PathGuide } from '../components/guide';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { usePermissions } from '../state/permissions';
 import { useAuth } from '../state/auth';
+import { useStore } from '../state/store';
 import { fmtDay, fmtHour, forecastServiceUrl, makeAdapter, MODEL_CHOICES, VARIABLE_LABEL, type ModelChoice } from '../state/forecast';
 
 const CONTEXT_DAYS = 28;
@@ -44,6 +45,9 @@ const GUIDED_MODEL_LABEL: Partial<Record<ModelChoice, string>> = {
 };
 
 export const ADVANCED_UNAVAILABLE = { title: 'Il modello avanzato non è ancora disponibile.', text: 'Puoi consultare la previsione di base.' };
+/** Servizio configurato ma spento o non raggiungibile in questo momento. */
+export const ADVANCED_DOWN = { title: 'Il modello avanzato non è disponibile.', text: 'Puoi continuare con la previsione di base.' };
+export const HUMIDITY_CLIPPED_NOTE = 'L’intervallo è stato riportato entro i limiti fisici dell’umidità, da 0% a 100%.';
 
 const BAND_PLAIN: Record<ForecastBand, string> = { '80': '8 casi su 10', '90': '9 casi su 10', '98': '98 casi su 100' };
 
@@ -96,11 +100,21 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
   const [run, setRun] = useState<RunState>({ status: 'idle' });
   const [baselines, setBaselines] = useState<ForecastResult[]>([]);
   const token = session?.access_token ?? null;
+  const { kind } = useStore();
+  // il modello avanzato passa dal proxy autenticato: serve un progetto dell'organizzazione (archivio condiviso)
+  const connected = kind === 'supabase' && !!token;
 
   useEffect(() => {
     let alive = true;
     setRun({ status: 'loading' });
-    makeAdapter(model, { token: async () => token })
+    const envelope = (req: typeof request) => ({
+      project_id: bundle.project.id,
+      context,
+      variables: req.targets.map((t) => ({ name: t.variable, unit: t.unit })),
+      issued_at: req.targets[0]!.timestamps.at(-1)!,
+      lineage: { source: `${dataset.meta.title} — ${dataset.meta.source}`, period: { from: req.targets[0]!.timestamps[0]!, to: req.targets[0]!.timestamps.at(-1)! } },
+    });
+    makeAdapter(model, { token: async () => token, ...(connected ? { envelope } : { baseUrl: null }) })
       .forecast(request)
       .then((result) => alive && setRun({ status: 'ok', result }))
       .catch((e: Error) => alive && setRun(e instanceof ForecastUnavailableError ? { status: 'unavailable', message: e.message } : { status: 'error', message: e.message }));
@@ -108,7 +122,8 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
     return () => {
       alive = false;
     };
-  }, [model, request, token]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model, request, token, connected]);
 
   const result = run.status === 'ok' ? run.result : null;
   const b = FORECAST_BANDS[band];
@@ -156,7 +171,10 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
   const guidedModels = MODEL_CHOICES.filter((m) => GUIDED_MODEL_LABEL[m.id]);
   const modelOptions = technical ? MODEL_CHOICES.map((m) => ({ id: m.id, label: m.label })) : guidedModels.map((m) => ({ id: m.id, label: GUIDED_MODEL_LABEL[m.id]! }));
   if (!modelOptions.some((m) => m.id === model)) modelOptions.push({ id: model, label: MODEL_CHOICES.find((m) => m.id === model)!.label });
-  const modelPlain = isTimestral ? 'modello avanzato (Beta)' : 'previsione di base';
+  // badge: il nome Timestral compare solo per un risultato prodotto davvero dal modello
+  const modelPlain = result?.model.kind === 'timestral' ? result.model.name : isTimestral ? 'modello avanzato (Beta)' : 'previsione di base';
+  const constraint = result?.model.kind === 'timestral' ? (result.constraints?.[0] ?? null) : null;
+  const unavailableText = connected && forecastServiceUrl() ? ADVANCED_DOWN : ADVANCED_UNAVAILABLE;
   const peak = chartForecast ? peakIndex(chartForecast.median, threshold.direction) : -1;
 
   return (
@@ -265,8 +283,8 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
         aside={result ? <SourceBadge kind={result.dataClass === 'SIMULATO' ? 'SIMULATO' : 'STIMATO_DA_MODELLO'} detail={technical ? (result.model.kind === 'timestral' ? `${result.model.name} [${result.model.revision.slice(0, 7)}]` : result.model.name) : modelPlain} testId="forecast-badge" /> : null}
       >
         {run.status === 'unavailable' && (
-          <Alert tone="warn" title={ADVANCED_UNAVAILABLE.title}>
-            <p>{ADVANCED_UNAVAILABLE.text}</p>
+          <Alert tone="warn" title={unavailableText.title}>
+            <p>{unavailableText.text}</p>
             <button type="button" className="btn-secondary mt-2" onClick={() => setModel('baseline-persistenza-stagionale')}>
               Mostra la previsione di base
             </button>
@@ -298,6 +316,11 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
           threshold={{ value: threshold.value, label: `${threshold.direction} ${formatNumber(threshold.value, series.unit)}` }}
           bandLabel={b.label}
         />
+        {constraint?.physical_constraint_applied && (
+          <p className="text-sm text-sand-600" data-testid="forecast-constraint-note">
+            {HUMIDITY_CLIPPED_NOTE}
+          </p>
+        )}
         {result && finding && (
           <div className="rounded-lg border border-sand-200 p-3 text-sm" data-testid="threshold-finding">
             {finding.flagged ? (
@@ -547,6 +570,17 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
                 <dd className="font-mono text-xs break-all">{result.inputHash}</dd>
                 <dt className="font-semibold text-sand-600">Tempo di calcolo</dt>
                 <dd>{result.inferenceMs} ms</dd>
+                {constraint && (
+                  <>
+                    <dt className="font-semibold text-sand-600">Vincolo fisico</dt>
+                    <dd data-testid="forecast-constraint-tech">
+                      {constraint.physical_constraint_applied
+                        ? `Applicato: ${constraint.adjusted_values_count} valori su ${constraint.total_values} riportati entro ${constraint.physical_min}–${constraint.physical_max} ${series.unit}`
+                        : 'Non necessario: nessun valore fuori dai limiti fisici'}
+                      ; massimo grezzo {formatNumber(constraint.maximum_raw_value, series.unit)}; metodo {constraint.method} ({constraint.adapter_version}). Il taglio dei valori estremi può modificare la calibrazione probabilistica degli intervalli.
+                    </dd>
+                  </>
+                )}
               </>
             )}
             <dt className="font-semibold text-sand-600">Avvertenze</dt>

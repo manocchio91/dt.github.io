@@ -18,7 +18,9 @@ const url = process.env.FORECAST_SERVICE_URL;
 const token = process.env.FORECAST_SERVICE_TOKEN;
 const adapters: TimeSeriesForecastAdapter[] = [new NaivePersistenceAdapter(), new SeasonalNaiveAdapter()];
 const timestralModels = ['mistralai/Timestral-5M', 'mistralai/Timestral-28M'] as const;
-if (url && token) for (const m of timestralModels) adapters.push(new TimestralForecastAdapter({ baseUrl: url, model: m, authorization: `Bearer ${token}`, timeoutMs: 120_000 }));
+// FORECAST_MODELS sceglie i modelli da eseguire (predefinito: solo il 5M); gli altri restano "non avviati"
+const wanted = new Set((process.env.FORECAST_MODELS ?? 'mistralai/Timestral-5M').split(',').map((m) => m.trim()));
+if (url && token) for (const m of timestralModels) if (wanted.has(m)) adapters.push(new TimestralForecastAdapter({ baseUrl: url, model: m, authorization: `Bearer ${token}`, timeoutMs: 120_000 }));
 
 interface CaseSummary {
   id: string;
@@ -52,6 +54,7 @@ for (const c of BACKTEST_CASES) {
     }
   }
   if (!(url && token)) for (const m of timestralModels) notRun.push({ adapter: m, reason: 'Motore Timestral non configurato (servizio non disponibile in questo ambiente)' });
+  else for (const m of timestralModels) if (!wanted.has(m)) notRun.push({ adapter: m, reason: 'non avviato: opzione di confronto successiva (FORECAST_MODELS)' });
   summary.cases.push({ id: c.id, context: c.context, label: c.label, variable: c.variable, unit: cfg.series.unit, horizon: c.horizon, period: { from: cfg.series.timestamps[0]!, to: cfg.series.timestamps.at(-1)! }, alertNote: c.alert.note, results, notRun });
   console.log(c.id, results.map((r) => `${r.adapter}: MAE ${r.mae} MASE ${r.mase} WQL ${r.wql} cop80 ${r.coverage80}`).join(' | '));
 }

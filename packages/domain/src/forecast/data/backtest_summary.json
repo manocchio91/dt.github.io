@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-10-24",
+ "generatedAt": "2026-10-25",
  "protocol": "Walk-forward con origini giornaliere; storico minimo 14 giorni, contesto 28 giorni; covariate note: solo calendario; nessun dato successivo all’origine nell’input.",
  "dataSource": "Rianalisi Open-Meteo (ERA5/ERA5-Land, CC BY 4.0): stime da modello su cella di griglia, non misure in campo.",
  "cases": [
@@ -51,16 +51,30 @@
       "criticitaMancate": 3,
       "veriNegativi": 48
      }
+    },
+    {
+     "adapter": "mistralai/Timestral-5M",
+     "name": "Timestral-5M",
+     "origins": 78,
+     "mae": 1.387,
+     "mase": 1.733,
+     "meanPinball": 0.486,
+     "wql": 0.043,
+     "coverage80": 0.763,
+     "coverage98": 0.97,
+     "evaluatedPoints": 1872,
+     "alerts": {
+      "veriPositivi": 12,
+      "falsiAllarmi": 8,
+      "criticitaMancate": 7,
+      "veriNegativi": 51
+     }
     }
    ],
    "notRun": [
     {
-     "adapter": "mistralai/Timestral-5M",
-     "reason": "Motore Timestral non configurato (servizio non disponibile in questo ambiente)"
-    },
-    {
      "adapter": "mistralai/Timestral-28M",
-     "reason": "Motore Timestral non configurato (servizio non disponibile in questo ambiente)"
+     "reason": "non avviato: opzione di confronto successiva (FORECAST_MODELS)"
     }
    ]
   },
@@ -112,16 +126,30 @@
       "criticitaMancate": 3,
       "veriNegativi": 14
      }
+    },
+    {
+     "adapter": "mistralai/Timestral-5M",
+     "name": "Timestral-5M",
+     "origins": 91,
+     "mae": 0.003,
+     "mase": 20.963,
+     "meanPinball": 0.001,
+     "wql": 0.016,
+     "coverage80": 0.802,
+     "coverage98": 0.948,
+     "evaluatedPoints": 6552,
+     "alerts": {
+      "veriPositivi": 70,
+      "falsiAllarmi": 0,
+      "criticitaMancate": 4,
+      "veriNegativi": 17
+     }
     }
    ],
    "notRun": [
     {
-     "adapter": "mistralai/Timestral-5M",
-     "reason": "Motore Timestral non configurato (servizio non disponibile in questo ambiente)"
-    },
-    {
      "adapter": "mistralai/Timestral-28M",
-     "reason": "Motore Timestral non configurato (servizio non disponibile in questo ambiente)"
+     "reason": "non avviato: opzione di confronto successiva (FORECAST_MODELS)"
     }
    ]
   },
@@ -173,16 +201,30 @@
       "criticitaMancate": 3,
       "veriNegativi": 71
      }
+    },
+    {
+     "adapter": "mistralai/Timestral-5M",
+     "name": "Timestral-5M",
+     "origins": 92,
+     "mae": 1.825,
+     "mase": 1.427,
+     "meanPinball": 0.634,
+     "wql": 0.052,
+     "coverage80": 0.737,
+     "coverage98": 0.974,
+     "evaluatedPoints": 4416,
+     "alerts": {
+      "veriPositivi": 1,
+      "falsiAllarmi": 5,
+      "criticitaMancate": 8,
+      "veriNegativi": 78
+     }
     }
    ],
    "notRun": [
     {
-     "adapter": "mistralai/Timestral-5M",
-     "reason": "Motore Timestral non configurato (servizio non disponibile in questo ambiente)"
-    },
-    {
      "adapter": "mistralai/Timestral-28M",
-     "reason": "Motore Timestral non configurato (servizio non disponibile in questo ambiente)"
+     "reason": "non avviato: opzione di confronto successiva (FORECAST_MODELS)"
     }
    ]
   }

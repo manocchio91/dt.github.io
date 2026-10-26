@@ -2,6 +2,7 @@ import {
   NaivePersistenceAdapter,
   SeasonalNaiveAdapter,
   TimestralForecastAdapter,
+  type ForecastRequest,
   type ForecastResult,
   type TimeSeriesForecastAdapter,
   type TimestralModelId,
@@ -28,7 +29,15 @@ export function forecastServiceUrl(): string | null {
 
 const timestralCache = new Map<string, ForecastResult>();
 
-export function makeAdapter(choice: ModelChoice, opts: { baseUrl?: string | null; token?: () => Promise<string | null>; fetchImpl?: typeof fetch } = {}): TimeSeriesForecastAdapter {
+/** Svuota la cache delle previsioni Timestral della sessione (usata dai test). */
+export function clearForecastCache(): void {
+  timestralCache.clear();
+}
+
+export function makeAdapter(
+  choice: ModelChoice,
+  opts: { baseUrl?: string | null; token?: () => Promise<string | null>; fetchImpl?: typeof fetch; envelope?: (req: ForecastRequest) => Record<string, unknown> | null } = {},
+): TimeSeriesForecastAdapter {
   if (choice === 'baseline-persistenza') return new NaivePersistenceAdapter();
   if (choice === 'baseline-persistenza-stagionale') return new SeasonalNaiveAdapter();
   return new TimestralForecastAdapter({
@@ -41,6 +50,7 @@ export function makeAdapter(choice: ModelChoice, opts: { baseUrl?: string | null
     timeoutMs: 60_000,
     cache: timestralCache,
     fetchImpl: opts.fetchImpl,
+    envelope: opts.envelope,
   });
 }
 

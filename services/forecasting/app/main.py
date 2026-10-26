@@ -20,9 +20,11 @@ from collections import OrderedDict
 import anyio
 import numpy as np
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from .config import MODELS, QUANTILE_LEVELS, SCHEMA_VERSION, TIMESTRAL_CODE_COMMIT, Settings
+from .config import ADAPTER_VERSION, MODELS, QUANTILE_LEVELS, SCHEMA_VERSION, TIMESTRAL_CODE_COMMIT, Settings
+from .constraints import apply_physical_bounds
 from .engine import Engine, EngineUnavailable, TimestralEngine
 from .schema import ForecastRequestV1, ForecastResponseV1
 
@@ -79,6 +81,8 @@ def validate_shapes(req: ForecastRequestV1, s: Settings) -> list[str]:
             for row in series:
                 if len(row) != expected:
                     errors.append(f"{name}: lunghezza {len(row)}, attesa {expected}")
+    if req.physical_bounds is not None and len(req.physical_bounds) != len(ctx[0]):
+        errors.append("physical_bounds: serve una voce per ogni variata")
     return sorted(set(errors))
 
 
@@ -90,6 +94,17 @@ def check_output(q: np.ndarray, med: np.ndarray, shape: tuple[int, int, int]) ->
         return ["valori non finiti nell'output del modello"]
     if (np.diff(q, axis=-1) < -1e-9).any():
         return ["quantili incrociati nell'output del modello"]
+    return []
+
+
+def check_bounds(q: np.ndarray, bounds: list | None) -> list[str]:
+    """Seconda verifica: dopo il vincolo nessun valore può restare fuori dai limiti dichiarati."""
+    for v, b in enumerate(bounds or []):
+        if b is None:
+            continue
+        lo, hi = b
+        if (lo is not None and (q[:, v] < lo - 1e-9).any()) or (hi is not None and (q[:, v] > hi + 1e-9).any()):
+            return [f"variata {v}: valori fuori dai limiti fisici dopo il vincolo"]
     return []
 
 
@@ -112,6 +127,12 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         if not authorization or not hmac.compare_digest(authorization.encode(), expected.encode()):
             raise HTTPException(401, "Non autorizzato")
 
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(_request: Request, exc: RequestValidationError) -> JSONResponse:
+        # solo campo e motivo: l'input (valori della serie, eventuali NaN) non viene mai ripetuto
+        parts = [f"{'.'.join(str(p) for p in e.get('loc', ())[1:]) or 'corpo'}: {e.get('msg', 'non valido')}" for e in exc.errors()[:5]]
+        return JSONResponse({"detail": "; ".join(parts)}, status_code=422)
+
     @app.middleware("http")
     async def body_limit(request: Request, call_next):
         length = request.headers.get("content-length")
@@ -125,6 +146,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             "status": "ok",
             "schema_version": SCHEMA_VERSION,
             "code_commit": TIMESTRAL_CODE_COMMIT,
+            "adapter_version": ADAPTER_VERSION,
             "auth_configured": bool(settings.token),
             "models": {m: {"revision": MODELS[m], "status": engine.status(m)} for m in settings.models},
         }
@@ -166,22 +188,33 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             raise HTTPException(504, "Tempo di inferenza scaduto") from None
         except EngineUnavailable as exc:
             raise HTTPException(503, str(exc)) from None
-        problems = check_output(out.quantiles, out.median, (ctx.shape[0], ctx.shape[1], req.prediction_length))
+        shape = (ctx.shape[0], ctx.shape[1], req.prediction_length)
+        problems = check_output(out.quantiles, out.median, shape)
         if problems:
             log.error("forecast hash=%s esito=output_non_valido", key[:12])
+            raise HTTPException(502, "; ".join(problems))
+        # vincoli fisici dichiarati (solo le variate indicate); i valori grezzi fuori limite non escono mai
+        quantiles, median, reports = apply_physical_bounds(out.quantiles, req.physical_bounds, ADAPTER_VERSION)
+        problems = check_output(quantiles, median, shape) + check_bounds(quantiles, req.physical_bounds)
+        if problems:
+            log.error("forecast hash=%s esito=vincolo_non_rispettato", key[:12])
             raise HTTPException(502, "; ".join(problems))
         warnings = []
         if np.isnan(ctx).any():
             warnings.append("storico con valori mancanti: gestiti dal modello come NaN")
+        for v, r in enumerate(reports):
+            if r and r["physical_constraint_applied"]:
+                warnings.append(f"variata {v}: {r['adjusted_values_count']} valori riportati entro i limiti fisici ({r['method']})")
         res = ForecastResponseV1(
             model=req.model, revision=MODELS[req.model], code_commit=TIMESTRAL_CODE_COMMIT,
-            quantile_levels=list(QUANTILE_LEVELS), quantiles=out.quantiles.round(6).tolist(),
-            median=out.median.round(6).tolist(), inference_ms=round((time.perf_counter() - t0) * 1000),
-            warnings=warnings, input_hash=key)
+            quantile_levels=list(QUANTILE_LEVELS), quantiles=quantiles.round(6).tolist(),
+            median=median.round(6).tolist(), inference_ms=round((time.perf_counter() - t0) * 1000),
+            warnings=warnings, input_hash=key, adapter_version=ADAPTER_VERSION, constraints=reports)
         cache[key] = res
         if len(cache) > settings.cache_size:
             cache.popitem(last=False)
-        log.info("forecast hash=%s shape=%s h=%d ms=%d esito=ok", key[:12], ctx.shape, req.prediction_length, res.inference_ms)
+        adjusted = sum(r["adjusted_values_count"] for r in reports if r)
+        log.info("forecast hash=%s shape=%s h=%d ms=%d corretti=%d esito=ok", key[:12], ctx.shape, req.prediction_length, res.inference_ms, adjusted)
         return res
 
     return app

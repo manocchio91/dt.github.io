@@ -79,6 +79,25 @@ export interface ForecastResult {
   /** classe di dato: STIMATO_DA_MODELLO per modelli reali e baseline, SIMULATO per la demo */
   dataClass: 'STIMATO_DA_MODELLO' | 'SIMULATO';
   inputHash: string;
+  /** per target: rapporto del vincolo fisico applicato lato server (null = nessun vincolo richiesto) */
+  constraints?: (PhysicalConstraintReport | null)[];
+  /** versione dell'adattatore del servizio che ha prodotto il risultato */
+  adapterVersion?: string;
+  /** esecuzione registrata su Supabase dal proxy (solo modelli reali) */
+  runId?: string;
+}
+
+/** Vincolo fisico (es. umidità 0–100%) applicato dal servizio prima della registrazione: mai nel browser. */
+export interface PhysicalConstraintReport {
+  physical_constraint_applied: boolean;
+  physical_min: number | null;
+  physical_max: number | null;
+  adjusted_values_count: number;
+  total_values: number;
+  maximum_raw_value: number;
+  minimum_raw_value: number;
+  method: string;
+  adapter_version: string;
 }
 
 export interface TimeSeriesForecastAdapter {

@@ -4,11 +4,10 @@ Servizio Python separato che esegue **Timestral** (Mistral AI) per previsioni
 probabilistiche di serie temporali orarie. Lo usa `TimestralForecastAdapter`
 (`packages/domain/src/forecast/timestral.ts`) tramite un proxy autenticato.
 
-> Stato: **implementato, non eseguito in questo ambiente** (Python e Docker non
-> erano disponibili). I test con motore finto (`tests/test_api.py`) e lo spike
-> sul modello reale (`tests/test_real_model.py`) vanno eseguiti come indicato sotto.
-> Finché il servizio non è raggiungibile, l'interfaccia mostra
-> **"Motore Timestral non configurato"** e non produce valori sostitutivi.
+> Stato: **eseguito davvero in Docker locale (CPU) il 25/10/2026** con Timestral-5M: test Python
+> 43/43 più il test sul modello reale, backtest contro le baseline e test su Supabase di staging
+> (`docs/15-previsioni-timestral.md` §13). Non pubblicato: il sito pubblico non lo raggiunge e,
+> senza servizio, l'interfaccia mostra che il modello avanzato non è disponibile, senza valori sostitutivi.
 
 ## Licenze (separate)
 
@@ -46,7 +45,14 @@ copre storico + orizzonte e contiene **solo** grandezze note in anticipo
 (calendario, previsione meteorologica, piano irriguo, evento pianificato).
 Risposta: `quantiles` (serie, variate, orizzonte, 21), `median`,
 `quantile_levels`, `revision`, `code_commit`, `inference_ms`, `warnings`,
-`input_hash` calcolato dal server.
+`input_hash` calcolato dal server, `adapter_version` e `constraints`.
+
+Campo facoltativo `physical_bounds`: una voce `[min, max]` (o `null`) per variata, decisa dal proxy
+(mai dal browser). Per le variate indicate mediana e quantili vengono riportati entro i limiti
+(`physical_clipping_v1`), l'ordinamento viene verificato di nuovo e `constraints` riporta per ogni
+variata: vincolo applicato, limiti, valori corretti, totale, massimo e minimo grezzo, metodo e
+versione dell'adattatore. Oggi si usa solo per l'umidità relativa (0–100%). Il taglio migliora la
+plausibilità fisica ma può alterare la calibrazione degli intervalli.
 
 Codici: 401 token errato, 413 corpo troppo grande, 422 input non valido o
 revisione diversa, 429 occupato, 502 output del modello non valido (quantili
@@ -83,7 +89,9 @@ Container (CPU, utente non root, pesi montati come volume, mai nell'immagine):
 
 ```bash
 docker build -t mdt-forecasting services/forecasting
-docker run --rm -p 8080:8080 -e FORECAST_SERVICE_TOKEN -v mdt-hf:/models mdt-forecasting
+docker build --target runtime -t mdt-forecasting:local services/forecasting
+docker run -d --name mdt-forecasting -p 127.0.0.1:8080:8080 --env-file <file locale escluso da Git> -v mdt-hf:/models --memory 2g --cpus 2 --read-only --tmpfs /tmp --security-opt no-new-privileges --cap-drop ALL mdt-forecasting:local
+docker build --target test -t mdt-forecasting:test services/forecasting && docker run --rm mdt-forecasting:test
 ```
 
 Con i pesi già in cache, `-e HF_HUB_OFFLINE=1` impedisce accessi di rete.
