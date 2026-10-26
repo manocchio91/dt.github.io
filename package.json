@@ -17,6 +17,7 @@
     "test": "vitest run",
     "ci": "npm run lint && npm run typecheck && npm run test && npm run build",
     "e2e": "npm run build && npm run build:e2e -w @mdt/web && npm run build:pages -w @mdt/web && playwright test",
+    "test:e2e:shutdown": "node scripts/check-playwright-shutdown.mjs",
     "sync:functions": "node scripts/sync-functions.mjs"
   },
   "devDependencies": {

@@ -9,6 +9,7 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: 'e2e',
+  globalSetup: './e2e/globalSetup.ts',
   timeout: 120_000,
   expect: { timeout: 10_000 },
   workers: 1,
@@ -17,10 +18,5 @@ export default defineConfig({
   projects: [
     { name: 'desktop', testIgnore: /mobile/, use: { viewport: { width: 1280, height: 800 } } },
     { name: 'mobile', testMatch: /mobile/, use: { ...devices['Pixel 7'], channel: 'msedge', defaultBrowserType: 'chromium' } },
-  ],
-  webServer: [
-    { command: 'npm run preview -w @mdt/web', url: 'http://localhost:4173', reuseExistingServer: true, timeout: 60_000 },
-    { command: 'npm run preview:sb -w @mdt/web', url: 'http://localhost:4174', reuseExistingServer: true, timeout: 60_000 },
-    { command: 'npm run preview:pages -w @mdt/web', url: 'http://localhost:4175/dt.github.io/', reuseExistingServer: true, timeout: 60_000 },
   ],
 });
