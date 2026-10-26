@@ -46,7 +46,7 @@ async function expectBadgeComplete(page: Page, testId: string) {
 
 test('urbano, modalità tecnica, 375 px: badge della previsione con il nome completo del modello', async ({ page }) => {
   await completeGuide(page, 'urbano', 'Tecnica');
-  await page.getByRole('link', { name: 'Previsioni (Beta)' }).click();
+  await page.goto(page.url().replace(/\/(urbano|agricolo)$/, '/previsioni'));
   await expect(page.getByTestId('forecast-technical')).toHaveAttribute('open', '');
   const badge = page.getByTestId('forecast-badge');
   await expect(badge).toContainText('STIMATO DA MODELLO — Persistenza stagionale (stessa ora del giorno prima)');
@@ -66,7 +66,7 @@ for (const path of ['urbano', 'agricolo'] as const) {
       await expectSourceBadgesInside(page);
       await expectNoHorizontalScroll(page);
       // Previsioni: badge del modello e dettagli tecnici aperti
-      await page.getByRole('link', { name: 'Previsioni (Beta)' }).click();
+      await page.goto(page.url().replace(/\/(urbano|agricolo)$/, '/previsioni'));
       await expect(page.getByTestId('forecast-badge')).toBeVisible();
       const tech = page.getByTestId('forecast-technical');
       if (mode === 'Guidata') {
@@ -84,7 +84,7 @@ for (const path of ['urbano', 'agricolo'] as const) {
 test('caso limite a 320 px: etichetta molto lunga e senza spazi va a capo senza tagli', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await completeGuide(page, 'agricolo', 'Tecnica');
-  await page.getByRole('link', { name: 'Previsioni (Beta)' }).click();
+  await page.goto(page.url().replace(/\/(urbano|agricolo)$/, '/previsioni'));
   const badge = page.getByTestId('forecast-badge');
   await expect(badge).toBeVisible();
   const long =

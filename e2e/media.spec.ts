@@ -16,7 +16,7 @@ async function openDemoMedia(page: Page, base: string, kind: 'urbana' | 'agricol
   await page.goto(base + '/');
   await page.getByRole('button', { name: `Apri la demo ${kind}` }).click();
   await expect(page).toHaveURL(kind === 'urbana' ? /\/urbano$/ : /\/agricolo$/);
-  await page.getByRole('link', { name: 'Foto e documenti' }).click();
+  await page.getByRole('link', { name: 'Allegati e prove' }).click();
   await expect(page.getByRole('heading', { name: 'Foto e documenti' })).toBeVisible();
 }
 
@@ -149,7 +149,7 @@ test.describe('Organizzazione (backend Supabase simulato)', () => {
     await page.goto(REMOTE + '/progetti');
     await page.getByRole('button', { name: 'Carica demo urbana' }).click();
     await expect(page).toHaveURL(/\/urbano$/);
-    await page.getByRole('link', { name: 'Foto e documenti' }).click();
+    await page.getByRole('link', { name: 'Allegati e prove' }).click();
     await expect(page.getByText(/Archivio privato di Comune B/)).toBeVisible();
   }
 
@@ -198,7 +198,7 @@ test.describe('Organizzazione (backend Supabase simulato)', () => {
     await page.getByRole('radio', { name: /Comune B.*lettura/ }).check();
     await page.goto(REMOTE + '/progetti');
     await page.getByRole('link', { name: /Campobasso/ }).click();
-    await page.getByRole('link', { name: 'Foto e documenti' }).click();
+    await page.getByRole('link', { name: 'Allegati e prove' }).click();
     await expect(page.getByText('Sul server (privato)')).toBeVisible();
     await expect(page.getByText('Trascina qui una foto o un documento')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /Elimina|Modifica collegamenti/ })).toHaveCount(0);
@@ -246,7 +246,7 @@ test.describe('Organizzazione (backend Supabase simulato)', () => {
     await page.getByRole('radio', { name: /Comune A/ }).check();
     await page.goto(REMOTE + '/progetti');
     await page.getByRole('link', { name: /Campobasso/ }).click();
-    await page.getByRole('link', { name: 'Foto e documenti' }).click();
+    await page.getByRole('link', { name: 'Allegati e prove' }).click();
     await expect(page.getByText(/Archivio privato di Comune A/)).toBeVisible();
     await expect(page.getByText('Solo del Comune B')).toHaveCount(0);
     await expect(page.getByText(/File del progetto \(0\)/)).toBeVisible();

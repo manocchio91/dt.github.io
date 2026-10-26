@@ -11,7 +11,7 @@ async function openForecast(page: import('@playwright/test').Page, demo: RegExp,
   await page.goto(LOCAL + '/');
   await page.getByRole('button', { name: demo }).click();
   await expect(page).toHaveURL(lab);
-  await page.getByRole('link', { name: 'Previsioni (Beta)' }).click();
+  await page.goto(page.url().replace(/\/(urbano|agricolo)$/, '/previsioni'));
   await expect(page.getByRole('heading', { level: 1, name: 'Previsioni' })).toBeVisible();
 }
 

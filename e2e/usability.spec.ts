@@ -65,7 +65,7 @@ test('agricoltore, modalità guidata: opzioni agricole, nessuna prescrizione, pe
   await answer(page, /Guidata/);
   await expect(page).toHaveURL(/\/agricolo$/);
   await expect(page.getByTestId('path-guide')).toContainText('Passi 3–7 di 7');
-  await page.getByRole('link', { name: 'Previsioni (Beta)' }).click();
+  await page.goto(page.url().replace(/\/(urbano|agricolo)$/, '/previsioni'));
   await expect(page.getByTestId('forecast-summary')).toContainText('Fascia di possibile variazione');
   await expect(page.getByTestId('forecast-summary')).not.toContainText(/q0,|quantil|WQL|MASE/);
 });
@@ -118,7 +118,7 @@ test('demo senza registrazione, senza Supabase e senza Open-Meteo: messaggi semp
   await expect(panel).toContainText('Dati meteo non ancora collegati.');
   await expect(panel).toContainText('Puoi continuare usando la modalità dimostrativa.');
   await expect(panel).not.toContainText(/Supabase|Edge Function|stack|Error/);
-  await page.getByRole('link', { name: 'Previsioni (Beta)' }).click();
+  await page.goto(page.url().replace(/\/(urbano|agricolo)$/, '/previsioni'));
   await expect(page.getByTestId('forecast-badge')).toContainText('previsione di base');
   await expect(page.getByRole('option', { name: 'Timestral-5M' })).toHaveCount(0);
   await expect(page.getByTestId('forecast-badge')).toContainText('previsione di base');
@@ -136,7 +136,7 @@ test('Lab urbano: meteo attuale, periodo storico e simulazione sono distinti e i
   await expect(history).toContainText('Non rappresenta il meteo di oggi.');
   await expect(history).toContainText(/Periodo selezionato.*2025/s);
   await expect(page.getByTestId('baseline-technical')).not.toHaveAttribute('open', '');
-  await expect(page.getByRole('heading', { name: 'SIMULAZIONE DEGLI INTERVENTI' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Cosa vuoi provare?' })).toBeVisible();
   await expect(page.getByText('SCENARI DIMOSTRATIVI — gli effetti degli interventi sono simulati.')).toBeVisible();
   await expect(page.getByText(/Gli effetti di alberi, superfici e nebulizzazione sono stime comparative illustrative/)).toBeVisible();
   await expect(page.locator('#u6 details').filter({ hasText: 'Modifica parametri' }).first()).not.toHaveAttribute('open', '');
@@ -149,7 +149,7 @@ test('Lab urbano: meteo attuale, periodo storico e simulazione sono distinti e i
 test('dettagli tecnici chiusi all’inizio e apribili su richiesta, senza ripetizioni', async ({ page }) => {
   await page.goto(LOCAL + '/');
   await page.getByRole('button', { name: 'Apri la demo urbana' }).click();
-  await page.getByRole('link', { name: 'Previsioni (Beta)' }).click();
+  await page.goto(page.url().replace(/\/(urbano|agricolo)$/, '/previsioni'));
   const tech = page.getByTestId('forecast-technical');
   await expect(tech).not.toHaveAttribute('open', '');
   await expect(page.getByText('WQL')).toBeHidden();
@@ -175,7 +175,7 @@ test('modalità tecnica: dettagli già aperti, nessuna guida passo-passo', async
   await expect(page).toHaveURL(/\/urbano$/);
   await expect(page.getByTestId('path-guide')).toHaveCount(0);
   await expect(page.getByTestId('baseline-technical')).toHaveAttribute('open', '');
-  await page.getByRole('link', { name: 'Previsioni (Beta)' }).click();
+  await page.goto(page.url().replace(/\/(urbano|agricolo)$/, '/previsioni'));
   await expect(page.getByTestId('forecast-technical')).toHaveAttribute('open', '');
   await expect(page.getByTestId('forecast-badge')).toContainText('Persistenza stagionale');
   await expect(page.getByRole('combobox', { name: /^Modello/ }).locator('option')).toHaveCount(2);

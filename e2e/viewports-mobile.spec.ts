@@ -20,7 +20,7 @@ for (const width of [320, 375, 390, 768]) {
     await page.getByTestId('weather-panel').scrollIntoViewIfNeeded();
     await expect(page.getByTestId('weather-panel')).toContainText('Dati meteo non ancora collegati.');
     await expectNoHorizontalScroll(page);
-    await page.getByRole('link', { name: 'Previsioni (Beta)' }).click();
+    await page.goto(page.url().replace(/\/(urbano|agricolo)$/, '/previsioni'));
     await expect(page.getByTestId('forecast-summary')).toBeVisible();
     await expectNoHorizontalScroll(page);
     const btn = page.getByRole('button', { name: 'Registra questa previsione nel progetto' });

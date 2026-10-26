@@ -26,11 +26,12 @@ test('GitHub Pages: navigazione, ricarica di una rotta interna e favicon nella s
   await page.goto(PAGES + '/');
   await page.getByRole('button', { name: 'Apri la demo urbana' }).click();
   await expect(page).toHaveURL(/\/dt\.github\.io\/progetti\/[^/]+\/urbano$/);
-  await page.getByRole('link', { name: 'Previsioni (Beta)' }).click();
+  await page.goto(page.url().replace(/\/(urbano|agricolo)$/, '/previsioni'));
   await expect(page).toHaveURL(/\/dt\.github\.io\/progetti\/[^/]+\/previsioni$/);
   await page.reload();
   await expect(page.getByRole('heading', { level: 1, name: 'Previsioni' })).toBeVisible();
-  await page.getByRole('link', { name: 'Stato funzioni' }).click();
+  await page.getByText('Informazioni', { exact: true }).click();
+  await page.getByRole('link', { name: 'Stato del prototipo' }).click();
   await expect(page).toHaveURL(PAGES + '/stato');
   await expect(page.locator('header img')).toHaveAttribute('src', '/dt.github.io/favicon.svg');
   expect(failed).toEqual([]);

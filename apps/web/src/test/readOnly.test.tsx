@@ -27,10 +27,10 @@ beforeEach(() => {
 const pages: { name: string; ui: () => ReactNode; route: () => string; path: string; marker: RegExp }[] = [
   { name: 'Progetti', ui: () => <ProjectsPage />, route: () => '/progetti', path: '/progetti', marker: /Campobasso/ },
   { name: 'Parcelle', ui: () => <AreaPage />, route: () => `/progetti/${agri.project.id}/area`, path: '/progetti/:id/area', marker: /Sottozone della parcella/ },
-  { name: 'Lab urbano', ui: () => <UrbanLabPage />, route: () => `/progetti/${urban.project.id}/urbano`, path: '/progetti/:id/urbano', marker: /RISULTATO SINTETICO/ },
-  { name: 'Confronto', ui: () => <ComparePage />, route: () => `/progetti/${urban.project.id}/confronto`, path: '/progetti/:id/confronto', marker: /Tabella di confronto/ },
+  { name: 'Lab urbano', ui: () => <UrbanLabPage />, route: () => `/progetti/${urban.project.id}/urbano`, path: '/progetti/:id/urbano', marker: /Cosa cambia\? Prima/ },
+  { name: 'Confronto', ui: () => <ComparePage />, route: () => `/progetti/${urban.project.id}/confronto`, path: '/progetti/:id/confronto', marker: /Alternative a colpo d.occhio/ },
   { name: 'Verifica', ui: () => <VerifyPage />, route: () => `/progetti/${urban.project.id}/verifica`, path: '/progetti/:id/verifica', marker: /Piano di monitoraggio/ },
-  { name: 'Lab agricolo', ui: () => <AgriLabPage />, route: () => `/progetti/${agri.project.id}/agricolo`, path: '/progetti/:id/agricolo', marker: /Componenti per zona/ },
+  { name: 'Lab agricolo', ui: () => <AgriLabPage />, route: () => `/progetti/${agri.project.id}/agricolo`, path: '/progetti/:id/agricolo', marker: /Dove devo controllare/ },
   { name: 'Previsioni urbane', ui: () => <ForecastPage />, route: () => `/progetti/${urban.project.id}/previsioni`, path: '/progetti/:id/previsioni', marker: /Confronto con le baseline/ },
   { name: 'Previsioni vigneto', ui: () => <ForecastPage />, route: () => `/progetti/${agri.project.id}/previsioni`, path: '/progetti/:id/previsioni', marker: /Soglie dell’agronomo/ },
 ];
@@ -65,7 +65,7 @@ describe('B-120 — interfaccia per ruolo', () => {
 
   it('nell’archivio locale (ospite) i comandi sono disponibili', async () => {
     renderApp(<UrbanLabPage />, { repo: remoteRepoLocal([urban]), route: `/progetti/${urban.project.id}/urbano`, path: '/progetti/:id/urbano' });
-    await screen.findAllByText(/RISULTATO SINTETICO/);
+    await screen.findAllByText(/Cosa cambia\? Prima/);
     expect(within(document.body).getAllByRole('button', { name: /Calcola A/ }).length).toBe(1);
   });
 });

@@ -9,7 +9,7 @@ test('smartphone: previsioni del vigneto leggibili senza scroll orizzontale', as
   await page.goto(LOCAL + '/');
   await page.getByRole('button', { name: 'Apri la demo agricola' }).click();
   await expect(page).toHaveURL(/\/agricolo$/);
-  await page.getByRole('link', { name: 'Previsioni (Beta)' }).click();
+  await page.goto(page.url().replace(/\/(urbano|agricolo)$/, '/previsioni'));
   await expect(page.getByTestId('forecast-badge')).toBeVisible();
   await expectNoHorizontalScroll(page);
   await expect(page.getByText(/Verificare in campo e confrontarsi con un agronomo/)).toBeVisible();

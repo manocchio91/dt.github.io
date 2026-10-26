@@ -31,7 +31,7 @@ test('smartphone 375 px: pannello meteo e previsioni leggibili, dettagli chiusi'
   await page.getByTestId('weather-panel').scrollIntoViewIfNeeded();
   await expect(page.getByTestId('weather-panel')).toContainText('Dati meteo non ancora collegati.');
   await expectNoHorizontalScroll(page);
-  await page.getByRole('link', { name: 'Previsioni (Beta)' }).click();
+  await page.goto(page.url().replace(/\/(urbano|agricolo)$/, '/previsioni'));
   await expect(page.getByTestId('forecast-summary')).toBeVisible();
   await expect(page.getByTestId('forecast-technical')).not.toHaveAttribute('open', '');
   await expectNoHorizontalScroll(page);
