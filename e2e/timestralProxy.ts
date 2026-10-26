@@ -56,4 +56,6 @@ export async function openForecastAsEditor(page: Page): Promise<FakeState> {
 export async function chooseAdvanced(page: Page, variable: 'umidita_relativa' | 'temperatura_aria' = 'umidita_relativa') {
   await page.getByRole('combobox', { name: /^Grandezza/ }).selectOption(variable);
   await page.getByRole('combobox', { name: /^Modello/ }).selectOption('mistralai/Timestral-5M');
+  await expect(page.getByRole('button', { name: 'Avvia Timestral-5M' })).toBeVisible();
+  await page.getByRole('button', { name: 'Avvia Timestral-5M' }).click();
 }

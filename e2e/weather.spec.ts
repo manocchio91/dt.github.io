@@ -28,7 +28,7 @@ async function loginAndOpen(page: Page, org: RegExp) {
   await page.getByRole('radio', { name: org }).check();
   const pid = Object.keys(state.docs)[0]!;
   await page.goto(`${REMOTE}/progetti/${pid}/urbano`);
-  await expect(page.getByRole('heading', { name: 'Dati meteorologici' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'SITUAZIONE ATTUALE' })).toBeVisible();
 }
 
 test('lettura: dati Open-Meteo con fonte, cella, timestamp e avviso; nessun aggiornamento manuale', async ({ page }) => {

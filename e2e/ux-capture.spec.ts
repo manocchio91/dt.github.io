@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { LOCAL, REMOTE } from './helpers';
 import { initialState, installFakeSupabase, USER } from './fakeSupabase';
+import { chooseAdvanced, mockTimestralProxy, openForecastAsEditor } from './timestralProxy';
 
 /**
  * Schermate di riferimento per l'audit di usabilità (non è un test di regressione).
@@ -18,7 +19,7 @@ const SIZES = [
 async function shot(page: Page, name: string, focus?: string) {
   for (const s of SIZES) {
     await page.setViewportSize({ width: s.width, height: s.height });
-    if (focus) await page.getByTestId(focus).scrollIntoViewIfNeeded();
+    if (focus) await (focus.startsWith('#') ? page.locator(focus) : page.getByTestId(focus)).scrollIntoViewIfNeeded();
     await page.waitForTimeout(300);
     await page.screenshot({ path: `docs/ux/schermate/${PHASE}/${name}-${s.name}.png` });
   }
@@ -38,13 +39,15 @@ test('percorso ospite', async ({ page }) => {
   await page.getByRole('button', { name: /Apri la demo urbana/ }).click();
   await expect(page).toHaveURL(/\/urbano$/);
   await shot(page, '03-lab-urbano');
+  await shot(page, '03b-periodo-storico', '#u3');
+  await shot(page, '03c-sintesi-scenario', '#u5');
+  await shot(page, '03d-risultati', '#u7');
   await shot(page, '04-meteo-non-collegato', 'weather-panel');
   const pid = page.url().split('/progetti/')[1]!.split('/')[0]!;
   await page.goto(`${LOCAL}/progetti/${pid}/previsioni`);
   await expect(page.getByTestId('forecast-badge')).toBeVisible({ timeout: 20_000 });
   await shot(page, '05-previsioni-urbano');
-  await page.getByRole('combobox', { name: /^Modello/ }).selectOption('mistralai/Timestral-5M');
-  await page.waitForTimeout(800);
+  await expect(page.getByRole('option', { name: 'Timestral-5M' })).toHaveCount(0);
   await shot(page, '06-previsioni-modello-avanzato');
   await page.goto(LOCAL + '/');
   await page.getByRole('button', { name: /Apri la demo agricola/ }).click();
@@ -67,7 +70,23 @@ test('pannello meteo collegato (backend simulato)', async ({ page }) => {
   await page.getByRole('radio', { name: /Comune A.*lettura/ }).check();
   const pid = Object.keys(state.docs)[0]!;
   await page.goto(`${REMOTE}/progetti/${pid}/urbano`);
-  await expect(page.getByRole('heading', { name: 'Dati meteorologici' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'SITUAZIONE ATTUALE' })).toBeVisible();
   await page.waitForTimeout(800);
   await shot(page, '09-meteo-collegato', 'weather-panel');
+});
+
+test('previsioni Timestral disponibile e spento', async ({ page }) => {
+  await mockTimestralProxy(page);
+  await openForecastAsEditor(page);
+  await chooseAdvanced(page, 'temperatura_aria');
+  await expect(page.getByTestId('forecast-badge')).toContainText('STIMATO DA MODELLO — Timestral-5M');
+  await shot(page, '10-previsioni-timestral-disponibile');
+});
+
+test('previsioni Timestral spento', async ({ page }) => {
+  await mockTimestralProxy(page, { status: 503 });
+  await openForecastAsEditor(page);
+  await chooseAdvanced(page, 'temperatura_aria');
+  await expect(page.getByText('Il modello avanzato non è disponibile.', { exact: true })).toBeVisible();
+  await shot(page, '11-previsioni-timestral-spento');
 });

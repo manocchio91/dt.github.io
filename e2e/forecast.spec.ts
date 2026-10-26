@@ -15,7 +15,7 @@ async function openForecast(page: import('@playwright/test').Page, demo: RegExp,
   await expect(page.getByRole('heading', { level: 1, name: 'Previsioni' })).toBeVisible();
 }
 
-test('urbano: previsione di base, banda, soglia, modello avanzato non disponibile, registrazione ed ex-post', async ({ page }) => {
+test('urbano: previsione di base, banda, soglia, modello avanzato nascosto senza servizio, registrazione ed ex-post', async ({ page }) => {
   await openForecast(page, /Apri la demo urbana/, /\/urbano$/);
   await expect(page.getByTestId('forecast-badge')).toContainText('STIMATO DA MODELLO — previsione di base');
   await expect(page.getByText(/non stima l’effetto di alberi/)).toBeVisible();
@@ -26,10 +26,7 @@ test('urbano: previsione di base, banda, soglia, modello avanzato non disponibil
   await page.getByLabel('Intervallo mostrato').selectOption('90');
   await expect(page.getByRole('listitem').filter({ hasText: 'intervallo 90%' })).toBeVisible();
 
-  await page.getByRole('combobox', { name: /^Modello/ }).selectOption('mistralai/Timestral-5M');
-  await expect(page.getByText('Il modello avanzato non è disponibile.')).toBeVisible();
-  await expect(page.getByTestId('forecast-badge')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Mostra la previsione di base' }).click();
+  await expect(page.getByRole('option', { name: 'Timestral-5M' })).toHaveCount(0);
   await expect(page.getByTestId('forecast-badge')).toContainText('previsione di base');
 
   await page.getByRole('button', { name: 'Registra questa previsione nel progetto' }).click();
@@ -52,7 +49,7 @@ test('tastiera: il grafico si esplora con le frecce e la tabella è raggiungibil
   await page.keyboard.press('Escape');
   await page.getByText('Tabella dei valori (alternativa al grafico)').focus();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('table').filter({ hasText: 'Ora (Europe/Rome)' })).toBeVisible();
+  await expect(page.getByRole('table').filter({ hasText: 'Data e orario (Europe/Rome)' })).toBeVisible();
 });
 
 test('vigneto: testo obbligatorio, 72 h e zone dalle soglie dell’agronomo', async ({ page }) => {

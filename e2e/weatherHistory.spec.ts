@@ -26,13 +26,14 @@ async function open(page: Page, org: RegExp) {
   await expect(page.getByText(`Accesso effettuato come ${USER.email}`)).toBeVisible();
   await page.getByRole('radio', { name: org }).check();
   await page.goto(`${REMOTE}/progetti/${Object.keys(state.docs)[0]!}/urbano`);
-  await expect(page.getByRole('heading', { name: 'Dati meteorologici' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'SITUAZIONE ATTUALE' })).toBeVisible();
 }
 
 test('storico completo: una frase semplice; ore valide e lacune solo nei dettagli della fonte', async ({ page }) => {
   await open(page, /Comune A.*lettura/);
   const note = page.getByTestId('weather-history');
-  await expect(note).toHaveText('Storico disponibile: 7 giorni. Il modello avanzato può essere utilizzato.');
+  await expect(note).toContainText('Storico disponibile: 7 giorni. Previsione avanzata disponibile.');
+  await expect(note.getByRole('link', { name: 'Apri le previsioni' })).toBeVisible();
   await expect(page.getByTestId('weather-history-details')).toBeHidden();
   await page.getByText('Dettagli della fonte').click();
   await expect(page.getByTestId('weather-history-details')).toContainText('168 ore valide su 168');

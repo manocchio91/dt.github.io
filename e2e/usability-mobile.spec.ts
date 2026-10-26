@@ -52,8 +52,8 @@ for (const width of [320, 375, 390]) {
     await page.setViewportSize({ width, height: 812 });
     await page.goto(LOCAL + '/');
     await page.getByRole('button', { name: 'Apri la demo urbana' }).click();
-    await expect(page.getByTestId('decision-overview')).toContainText(/Regolare|Attenzione|Critico/);
-    await expect(page.getByTestId('decision-overview')).toContainText('Prossimo passo:');
+    await expect(page.getByRole('heading', { name: 'SITUAZIONE ATTUALE' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'PERIODO STORICO DI RIFERIMENTO' })).toBeVisible();
     await expect(page.locator('main .btn-primary:visible')).toHaveCount(1);
     await expectNoHorizontalScroll(page);
 

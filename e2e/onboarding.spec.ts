@@ -60,7 +60,7 @@ test('primo scenario da zero, solo con indicazioni a schermo (nuovo progetto)', 
   await page.getByRole('link', { name: /Vai al Decision Lab/ }).click();
 
   const guide = page.getByRole('complementary', { name: 'Guida' });
-  await expect(guide).toContainText('crea la baseline');
+  await expect(guide).toContainText('scegli il periodo storico di riferimento');
   await page.getByRole('button', { name: 'Usa valori dimostrativi (SIMULATI)' }).click();
   await expect(guide).toContainText('aggiungi uno scenario');
   await page.getByRole('button', { name: /Aggiungi scenario A/ }).click();
@@ -70,7 +70,7 @@ test('primo scenario da zero, solo con indicazioni a schermo (nuovo progetto)', 
   await page.getByRole('button', { name: 'Aggiungi con queste coordinate' }).click();
   await expect(guide).toContainText('calcola lo scenario');
   await page.getByRole('button', { name: 'Calcola A' }).click();
-  await expect(page.getByText('Riduzione stimata — temperatura superficiale').first()).toBeVisible();
+  await expect(page.getByTestId('scenario-summary')).toContainText(/temperatura dell’aria potrebbe ridursi/);
   await expect(page.getByText('SIMULATO').first()).toBeVisible();
   const ms = Date.now() - t0;
   test.info().annotations.push({ type: 'tempo', description: `da onboarding a primo scenario: ${ms} ms` });

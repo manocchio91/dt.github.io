@@ -240,8 +240,7 @@ describe('Pannello meteo — modalità guidata e tecnica (Audit Anno Luce)', () 
     open(urban);
     const summary = within(await screen.findByTestId('weather-summary'));
     expect(summary.getByTestId('weather-level').textContent).toMatch(/Stato: (Regolare|Attenzione|Critico)/);
-    expect(summary.getByText(/Temperatura aria \(2 m\) ora/)).toBeTruthy();
-    expect(summary.getByText(/sopra 32 °C — dimostrativa, da confermare \(tecnico comunale\)/)).toBeTruthy();
+    expect(summary.getByText('Valore principale')).toBeTruthy();
     expect(summary.getByText('Ultimo aggiornamento')).toBeTruthy();
     expect(summary.getByText('Open-Meteo, previsione da modello meteorologico')).toBeTruthy();
     expect(summary.getByText(/Prossimo passo:/)).toBeTruthy();
@@ -276,8 +275,7 @@ describe('Pannello meteo — modalità guidata e tecnica (Audit Anno Luce)', () 
     setMode('guidata');
     open(agri);
     const summary = await screen.findByTestId('weather-summary');
-    expect(summary.textContent).toMatch(/Umidità suolo 9–27 cm ora|Temperatura aria \(2 m\) ora/);
-    expect(summary.textContent).toMatch(/\(agronomo\)/);
+    expect(summary.textContent).toMatch(/Valore principale/);
     expect(summary.textContent).not.toMatch(/irriga|tratta/i);
   });
 });
@@ -292,7 +290,9 @@ describe('Pannello meteo — storico di 7 giorni (stato calcolato dal server)', 
   it('storico completo: “Storico disponibile: 7 giorni”, dettagli (ore valide, continuità) solo nella sezione della fonte', async () => {
     tables.history = { 'loc-u': hist() };
     open(urban);
-    expect((await screen.findByTestId('weather-history')).textContent).toBe('Storico disponibile: 7 giorni. Il modello avanzato può essere utilizzato.');
+    const note = await screen.findByTestId('weather-history');
+    expect(note.textContent).toContain('Storico disponibile: 7 giorni. Previsione avanzata disponibile.');
+    expect(within(note).getByRole('link', { name: 'Apri le previsioni' })).toBeTruthy();
     const details = screen.getByTestId('weather-history-details');
     expect(details.closest('details')!.open).toBe(false);
     expect(details.textContent).toContain('168 ore valide su 168 (100%), 206 continue, 79 ore future');

@@ -27,7 +27,7 @@ beforeEach(() => {
 const pages: { name: string; ui: () => ReactNode; route: () => string; path: string; marker: RegExp }[] = [
   { name: 'Progetti', ui: () => <ProjectsPage />, route: () => '/progetti', path: '/progetti', marker: /Campobasso/ },
   { name: 'Parcelle', ui: () => <AreaPage />, route: () => `/progetti/${agri.project.id}/area`, path: '/progetti/:id/area', marker: /Sottozone della parcella/ },
-  { name: 'Lab urbano', ui: () => <UrbanLabPage />, route: () => `/progetti/${urban.project.id}/urbano`, path: '/progetti/:id/urbano', marker: /Calcolo trasparente/ },
+  { name: 'Lab urbano', ui: () => <UrbanLabPage />, route: () => `/progetti/${urban.project.id}/urbano`, path: '/progetti/:id/urbano', marker: /RISULTATO SINTETICO/ },
   { name: 'Confronto', ui: () => <ComparePage />, route: () => `/progetti/${urban.project.id}/confronto`, path: '/progetti/:id/confronto', marker: /Tabella di confronto/ },
   { name: 'Verifica', ui: () => <VerifyPage />, route: () => `/progetti/${urban.project.id}/verifica`, path: '/progetti/:id/verifica', marker: /Piano di monitoraggio/ },
   { name: 'Lab agricolo', ui: () => <AgriLabPage />, route: () => `/progetti/${agri.project.id}/agricolo`, path: '/progetti/:id/agricolo', marker: /Componenti per zona/ },
@@ -65,7 +65,7 @@ describe('B-120 — interfaccia per ruolo', () => {
 
   it('nell’archivio locale (ospite) i comandi sono disponibili', async () => {
     renderApp(<UrbanLabPage />, { repo: remoteRepoLocal([urban]), route: `/progetti/${urban.project.id}/urbano`, path: '/progetti/:id/urbano' });
-    await screen.findAllByText(/Calcolo trasparente/);
+    await screen.findAllByText(/RISULTATO SINTETICO/);
     expect(within(document.body).getAllByRole('button', { name: /Calcola A/ }).length).toBe(1);
   });
 });
