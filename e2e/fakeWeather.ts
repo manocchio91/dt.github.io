@@ -13,6 +13,19 @@ export interface WeatherState {
   points: Record<string, unknown>[];
   observations: Record<string, unknown>[];
   invokes: { body: unknown; status: number }[];
+  /** risposta simulata di weather_history_status per località */
+  history: Record<string, Record<string, unknown>>;
+}
+
+/** Stato dello storico come lo calcola il server (migrazioni 0012–0013). */
+export function historyStatus(over: Record<string, unknown> = {}): Record<string, unknown> {
+  const last = new Date(Date.parse(issuedHour(new Date())) - 3_600_000).toISOString();
+  return {
+    stato: 'sufficiente', livello: 'disponibile', ore_obiettivo: 168, prima_ora: new Date(Date.parse(last) - 191 * 3_600_000).toISOString(), ultima_ora: last,
+    ore_finestra: 168, ore_continue: 192, ore_future: 79, completezza_pct: 100, sufficiente_timestral: true, aggiornato: true, in_corso: false, buchi: [],
+    variabili: ['relative_humidity_2m', 'temperature_2m'], ore_per_variabile: { relative_humidity_2m: 168, temperature_2m: 168 }, variabili_richieste_mancanti: [],
+    ultimo_aggiornamento: new Date().toISOString(), ultimo_errore: null, ...over,
+  };
 }
 
 export const WEATHER_LOC = '00000000-0000-4000-8000-00000000c1c1';
@@ -57,6 +70,7 @@ export function initialWeatherState(projectId: string, organizationId: string): 
     points,
     observations: [],
     invokes: [],
+    history: { [WEATHER_LOC]: historyStatus() },
   };
 }
 
@@ -91,6 +105,14 @@ export async function handleWeather(route: Route, w: WeatherState, roleIn: (org:
     }
     w.invokes.push({ body, status });
     await json(route, status, out);
+    return true;
+  }
+
+  if (p === '/rest/v1/rpc/weather_history_status') {
+    const { p_location } = req.postDataJSON() as { p_location: string };
+    const loc = w.locations.find((l) => l.id === p_location);
+    if (!userId || !loc || !readable(loc.organization_id)) await json(route, 404, { code: 'P0002', message: 'Località non trovata.' });
+    else await json(route, 200, w.history[p_location] ?? historyStatus({ stato: 'in_preparazione', livello: 'insufficiente', ultima_ora: null, ore_finestra: 0, ore_continue: 0 }));
     return true;
   }
 

@@ -48,8 +48,32 @@ export interface SensorObservation {
   quality_flag: string;
 }
 
+/** Completezza dello storico calcolata dal server (weather_history_status, migrazioni 0012–0013). */
+export interface HistoryStatus {
+  stato: 'in_preparazione' | 'sufficiente' | 'incompleto' | 'non_riuscito';
+  livello: 'disponibile' | 'consolidamento' | 'insufficiente';
+  ore_obiettivo: number;
+  prima_ora: string | null;
+  ultima_ora: string | null;
+  ore_finestra: number;
+  ore_continue: number;
+  ore_future: number;
+  completezza_pct: number;
+  sufficiente_timestral: boolean;
+  aggiornato: boolean;
+  in_corso: boolean;
+  buchi: { da: string; a: string; ore: number }[];
+  variabili: string[];
+  ore_per_variabile: Record<string, number>;
+  variabili_richieste_mancanti: string[];
+  ultimo_aggiornamento: string | null;
+  ultimo_errore: { codice: string | null; il: string | null } | null;
+}
+
 export interface WeatherSnapshot {
   location: WeatherLocation;
+  /** null se il server non espone ancora lo stato dello storico */
+  history: HistoryStatus | null;
   run: WeatherRun | null;
   lastAttempt: WeatherRun | null;
   points: WeatherPoint[];
@@ -68,7 +92,7 @@ export class WeatherRefreshError extends Error {
 
 export const MANUAL_COOLDOWN_MS = 10 * 60_000;
 
-type Client = Pick<SupabaseClient, 'from' | 'functions'>;
+type Client = Pick<SupabaseClient, 'from' | 'functions' | 'rpc'>;
 
 const check = <T>(r: { data: T; error: { message: string } | null }): T => {
   if (r.error) throw new Error(r.error.message);
@@ -88,7 +112,12 @@ export async function loadSnapshot(client: Client, location: WeatherLocation): P
   const run = runs.find((r) => r.status === 'completata') ?? null;
   const points = run ? (check(await client.from('weather_forecast_points').select('*').eq('fetch_run_id', run.id).order('valid_at').limit(200)) as WeatherPoint[]) : [];
   const sensors = check(await client.from('weather_observations').select('observed_at, variable, value, unit, source, quality_flag').eq('location_id', location.id).eq('source', 'sensore').order('observed_at', { ascending: false }).limit(20)) as SensorObservation[];
-  return { location, run, lastAttempt: runs[0] ?? null, points, sensors, lastManualAt: runs.find((r) => r.trigger === 'manuale')?.requested_at ?? null };
+  return { location, history: await loadHistoryStatus(client, location.id), run, lastAttempt: runs[0] ?? null, points, sensors, lastManualAt: runs.find((r) => r.trigger === 'manuale')?.requested_at ?? null };
+}
+
+export async function loadHistoryStatus(client: Client, locationId: string): Promise<HistoryStatus | null> {
+  const { data, error } = await client.rpc('weather_history_status', { p_location: locationId });
+  return error ? null : (data as HistoryStatus);
 }
 
 /** Aggiornamento manuale tramite la Edge Function (autorizzazione e limite applicati dal server). */

@@ -11,6 +11,7 @@ import {
   requestRefresh,
   WEATHER_LABEL,
   WeatherRefreshError,
+  type HistoryStatus,
   type WeatherPoint,
   type WeatherSnapshot,
 } from '../state/weather';
@@ -22,6 +23,10 @@ import { LEVEL_LABEL, summarizeWeather, type WeatherSummary } from '../state/wea
 
 export const MODELLED_NOTICE = 'Dato territoriale modellato, non rilevato da sensore locale.';
 export const NOT_CONNECTED = { title: 'Dati meteo non ancora collegati.', text: 'Puoi continuare usando la modalità dimostrativa.' };
+export const NOT_YET_AVAILABLE = 'Il progetto è stato salvato, ma i dati meteo non sono ancora disponibili. Riprova più tardi.';
+/** Durante la prima acquisizione il pannello si aggiorna da solo per circa un minuto. */
+const PREPARATION_POLL_MS = 5_000;
+const PREPARATION_POLLS = 12;
 
 const VARIABLE_UNITS = 'temperatura °C · umidità % · precipitazioni mm · vento m/s · radiazione W/m² · ET0 mm · VPD kPa · umidità del suolo m³/m³';
 
@@ -71,6 +76,7 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
   const [msg, setMsg] = useState<{ tone: 'ok' | 'warn' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [localCooldownUntil, setLocalCooldownUntil] = useState(0);
+  const [polls, setPolls] = useState(0);
   const connected = kind === 'supabase' && !!client && !!session;
 
   const load = useCallback(async () => {
@@ -111,6 +117,17 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
     void load();
   }, [load, online]);
 
+  // prima acquisizione avviata dal server alla creazione della località: si ricontrolla per un minuto
+  const preparing = !!snap && (!snap.run || snap.history?.stato === 'in_preparazione') && snap.history?.stato !== 'non_riuscito';
+  useEffect(() => {
+    if (!preparing || polls >= PREPARATION_POLLS) return;
+    const t = setTimeout(() => {
+      setPolls((n) => n + 1);
+      void load();
+    }, PREPARATION_POLL_MS);
+    return () => clearTimeout(t);
+  }, [preparing, polls, load]);
+
   if (!connected) {
     return (
       <section aria-labelledby="meteo-h" className="card space-y-2" data-testid="weather-panel">
@@ -148,12 +165,13 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
     try {
       const r = await requestRefresh(client, snap.location.id);
       setLocalCooldownUntil(Date.now() + MANUAL_COOLDOWN_MS);
+      setPolls(0);
       setMsg(r.status === 'gia_acquisita' ? { tone: 'ok', text: 'Dati già acquisiti per quest’ora: nessuna nuova richiesta a Open-Meteo.' } : { tone: 'ok', text: `Dati aggiornati: ${r.points} ore di previsione registrate.` });
       await load();
     } catch (e) {
       const err = e as WeatherRefreshError;
       if (err.status === 429) setLocalCooldownUntil(Date.now() + MANUAL_COOLDOWN_MS);
-      setMsg({ tone: err.status === 429 ? 'warn' : 'error', text: err.status === 429 ? `Limite di frequenza: ${err.message}` : `Aggiornamento non riuscito: ${err.message} Restano visibili gli ultimi dati validi.` });
+      setMsg({ tone: err.status === 429 ? 'warn' : 'error', text: err.status === 429 ? `Limite di frequenza: ${err.message}` : `${snap.run ? 'Aggiornamento non riuscito: restano visibili gli ultimi dati validi.' : NOT_YET_AVAILABLE}${technical ? ` (${err.message})` : ''}` });
       await load();
     } finally {
       setBusy(false);
@@ -233,7 +251,15 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
         </div>
       )}
 
-      {snap && !run && <p className="text-sm">Punto “{snap.location.name}” registrato: nessuna acquisizione completata finora. L’acquisizione automatica avviene ogni 3 ore.</p>}
+      {snap && (
+        <HistoryNote
+          history={snap.history}
+          hasRun={!!run}
+          preparing={preparing && polls < PREPARATION_POLLS}
+          retry={canEdit && online && !coolingDown && (!run || snap.history?.stato === 'non_riuscito') && !(preparing && polls < PREPARATION_POLLS) ? refresh : null}
+          busy={busy}
+        />
+      )}
 
       {snap && run && (
         <>
@@ -276,6 +302,7 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
               <dd>Valore medio di una cella di griglia di alcuni chilometri: non descrive differenze tra una via e l’altra o tra una parcella e l’altra.</dd>
               <dt className="font-semibold text-sand-600">Licenza e attribuzione</dt>
               <dd>{OM_ATTRIBUTION}</dd>
+              {snap.history && <HistoryDetails h={snap.history} />}
             </dl>
           </details>
 
@@ -434,5 +461,55 @@ function Legend() {
       <SourceBadge kind="STIMATO_DA_MODELLO" />
       <SourceBadge kind="SIMULATO" />
     </div>
+  );
+}
+
+/** Modalità guidata: lo stato dello storico in una frase, senza termini tecnici. */
+function HistoryNote({ history: h, hasRun, preparing, retry, busy }: { history: HistoryStatus | null; hasRun: boolean; preparing: boolean; retry: (() => void) | null; busy: boolean }) {
+  let text: string;
+  let tone = 'bg-sand-100 text-sand-900';
+  if (h?.stato === 'non_riuscito' || (!hasRun && !preparing)) {
+    text = NOT_YET_AVAILABLE;
+    tone = 'bg-ochre-100 text-ochre-800';
+  } else if (!hasRun || h?.stato === 'in_preparazione') {
+    text = 'Preparazione dei dati meteo: stiamo raccogliendo lo storico dei 7 giorni precedenti.';
+  } else if (!h) {
+    // server senza lo stato dello storico: nessuna frase invece di una supposizione
+    return null;
+  } else if (h.livello === 'disponibile') {
+    text = 'Storico disponibile: 7 giorni. Il modello avanzato può essere utilizzato.';
+  } else {
+    text = `Stiamo raccogliendo lo storico necessario. Sono disponibili ${h.ore_finestra} delle ${h.ore_obiettivo} ore previste.`;
+    text += h.livello === 'consolidamento' ? ' Storico ancora in consolidamento: il modello avanzato si può usare con cautela.' : ' Storico non ancora sufficiente per il modello avanzato.';
+  }
+  const missing = h ? h.buchi.reduce((n, b) => n + b.ore, 0) : 0;
+  return (
+    <div className={`space-y-1 rounded p-2 text-sm ${tone}`} data-testid="weather-history" role="status">
+      <p>{text}</p>
+      {h && hasRun && missing > 0 && <p>Mancano {missing} ore nello storico: non vengono stimate né riempite.</p>}
+      {retry && (
+        <button type="button" className="btn-secondary" onClick={retry} disabled={busy}>
+          {busy ? 'Aggiornamento…' : 'Riprova aggiornamento'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+const fmtUtc = (iso: string | null) => (iso ? fmtTime(iso) : 'n.d.');
+
+/** Modalità tecnica e "Dettagli della fonte": completezza calcolata dal server. */
+function HistoryDetails({ h }: { h: HistoryStatus }) {
+  return (
+    <>
+      <dt className="font-semibold text-sand-600">Storico</dt>
+      <dd data-testid="weather-history-details">
+        {h.ore_finestra} ore valide su {h.ore_obiettivo} ({h.completezza_pct}%), {h.ore_continue} continue, {h.ore_future} ore future; dal {fmtUtc(h.prima_ora)} al {fmtUtc(h.ultima_ora)}. Ora valida = tutte le
+        variabili obbligatorie presenti.
+        {h.variabili_richieste_mancanti.length > 0 && <> Variabili obbligatorie assenti: {h.variabili_richieste_mancanti.join(', ')}.</>}
+        {h.buchi.length > 0 && <> Lacune: {h.buchi.map((b) => `${fmtUtc(b.da)} → ${fmtUtc(b.a)} (${b.ore} h)`).join('; ')}.</>}
+        {' '}Variabili: {h.variabili.map((v) => `${WEATHER_LABEL[v] ?? v} ${h.ore_per_variabile[v] ?? 0} h`).join(', ')}.
+      </dd>
+    </>
   );
 }

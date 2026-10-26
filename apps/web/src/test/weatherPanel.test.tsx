@@ -15,6 +15,8 @@ interface Tables {
   weather_fetch_runs: Record<string, unknown>[];
   weather_forecast_points: Record<string, unknown>[];
   weather_observations: Record<string, unknown>[];
+  /** risposta di weather_history_status per località (assente = funzione non disponibile) */
+  history?: Record<string, unknown>;
 }
 
 function pointsFrom(fixture: unknown, scope: 'urban' | 'agricultural', runId: string) {
@@ -29,7 +31,7 @@ function run(id: string, locId: string, over: Record<string, unknown> = {}) {
 /** Doppio minimo di supabase-js: filtri eq/gte, ordinamento ignorato, functions.invoke simulato. */
 function fakeClient(t: Tables, invoke: (body: { location_id: string }) => { data: unknown; error: unknown } = () => ({ data: { status: 'completata', points: 79 }, error: null })) {
   const calls = { invoke: [] as unknown[], inserts: [] as unknown[], fail: null as Error | null };
-  const from = (table: keyof Tables) => {
+  const from = (table: Exclude<keyof Tables, 'history'>) => {
     const filters: [string, unknown][] = [];
     let one = false;
     let payload: Record<string, unknown> | null = null;
@@ -59,6 +61,8 @@ function fakeClient(t: Tables, invoke: (body: { location_id: string }) => { data
   };
   const client = {
     from,
+    rpc: async (fn: string, args: { p_location: string }) =>
+      fn === 'weather_history_status' && t.history?.[args.p_location] ? { data: t.history[args.p_location], error: null } : { data: null, error: { message: 'non disponibile' } },
     functions: {
       invoke: async (_name: string, { body }: { body: { location_id: string } }) => {
         calls.invoke.push(body);
@@ -189,7 +193,8 @@ describe('Pannello “Dati meteorologici”', () => {
     const f = fakeClient(tables, () => ({ data: null, error: { message: 'x', context: { status: 502, json: async () => ({ error: 'Open-Meteo ha risposto 503' }) } } }));
     open(urban, 'editor', f.client);
     fireEvent.click(await screen.findByRole('button', { name: 'Aggiorna dati' }));
-    expect(await screen.findByText(/Aggiornamento non riuscito: Open-Meteo ha risposto 503 Restano visibili gli ultimi dati validi/)).toBeTruthy();
+    expect(await screen.findByText('Aggiornamento non riuscito: restano visibili gli ultimi dati validi.')).toBeTruthy();
+    expect(screen.queryByText(/Open-Meteo ha risposto 503/)).toBeNull(); // il dettaglio tecnico resta alla modalità tecnica
     expect(screen.getByTestId('weather-hourly')).toBeTruthy();
   });
 
@@ -274,5 +279,81 @@ describe('Pannello meteo — modalità guidata e tecnica (Audit Anno Luce)', () 
     expect(summary.textContent).toMatch(/Umidità suolo 9–27 cm ora|Temperatura aria \(2 m\) ora/);
     expect(summary.textContent).toMatch(/\(agronomo\)/);
     expect(summary.textContent).not.toMatch(/irriga|tratta/i);
+  });
+});
+
+describe('Pannello meteo — storico di 7 giorni (stato calcolato dal server)', () => {
+  const hist = (over: Record<string, unknown> = {}) => ({
+    stato: 'sufficiente', livello: 'disponibile', ore_obiettivo: 168, prima_ora: '2026-10-16T00:00:00+00:00', ultima_ora: '2026-10-24T14:00:00+00:00', ore_finestra: 168, ore_continue: 206, ore_future: 79,
+    completezza_pct: 100, sufficiente_timestral: true, aggiornato: true, in_corso: false, buchi: [], variabili: ['temperature_2m', 'relative_humidity_2m'], ore_per_variabile: { temperature_2m: 168, relative_humidity_2m: 168 },
+    variabili_richieste_mancanti: [], ultimo_aggiornamento: '2026-10-24T15:07:03Z', ultimo_errore: null, ...over,
+  });
+
+  it('storico completo: “Storico disponibile: 7 giorni”, dettagli (ore valide, continuità) solo nella sezione della fonte', async () => {
+    tables.history = { 'loc-u': hist() };
+    open(urban);
+    expect((await screen.findByTestId('weather-history')).textContent).toBe('Storico disponibile: 7 giorni. Il modello avanzato può essere utilizzato.');
+    const details = screen.getByTestId('weather-history-details');
+    expect(details.closest('details')!.open).toBe(false);
+    expect(details.textContent).toContain('168 ore valide su 168 (100%), 206 continue, 79 ore future');
+    expect(screen.getByTestId('weather-history').textContent).not.toMatch(/backfill|inferenza|covariat|hash|ore valide/i);
+  });
+
+  it('storico in consolidamento: ore disponibili su 168 e lacune dichiarate, senza valori inventati', async () => {
+    tables.history = { 'loc-u': hist({ livello: 'consolidamento', ore_finestra: 96, ore_continue: 90, completezza_pct: 57.1, buchi: [{ da: '2026-10-18T00:00:00+00:00', a: '2026-10-18T05:00:00+00:00', ore: 6 }] }) };
+    open(urban);
+    const t = (await screen.findByTestId('weather-history')).textContent!;
+    expect(t.startsWith('Stiamo raccogliendo lo storico necessario. Sono disponibili 96 delle 168 ore previste. Storico ancora in consolidamento')).toBe(true);
+    expect(t).toContain('Mancano 6 ore nello storico: non vengono stimate né riempite.');
+  });
+
+  it('meno di 72 ore: storico non ancora sufficiente per il modello avanzato', async () => {
+    tables.history = { 'loc-u': hist({ livello: 'insufficiente', stato: 'incompleto', ore_finestra: 30, ore_continue: 30 }) };
+    open(urban);
+    expect((await screen.findByTestId('weather-history')).textContent).toContain('Sono disponibili 30 delle 168 ore previste. Storico non ancora sufficiente per il modello avanzato.');
+  });
+
+  it('località appena creata: “Preparazione dei dati meteo” senza pulsanti, poi il pannello si aggiorna da solo', async () => {
+    tables.weather_fetch_runs = [];
+    tables.history = { 'loc-u': hist({ stato: 'in_preparazione', livello: 'insufficiente', ultima_ora: null, ore_finestra: 0, ore_continue: 0 }) };
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      open(urban);
+      expect((await screen.findByTestId('weather-history')).textContent).toMatch(/^Preparazione dei dati meteo/);
+      expect(screen.queryByRole('button', { name: 'Riprova aggiornamento' })).toBeNull();
+      tables.weather_fetch_runs = [run('run-u', 'loc-u')];
+      tables.history = { 'loc-u': hist() };
+      await vi.advanceTimersByTimeAsync(5_100);
+      await waitFor(() => expect(screen.getByTestId('weather-history').textContent).toMatch(/^Storico disponibile/));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('prima acquisizione non riuscita: messaggio semplice e “Riprova aggiornamento” per chi modifica', async () => {
+    tables.weather_fetch_runs = [run('run-x', 'loc-u', { status: 'errore', error_code: 'TIMEOUT', issued_at: null })];
+    tables.history = { 'loc-u': hist({ stato: 'non_riuscito', livello: 'insufficiente', ultima_ora: null, ore_finestra: 0, ultimo_errore: { codice: 'TIMEOUT', il: '2026-10-24T15:07:00Z' } }) };
+    const f = fakeClient(tables);
+    open(urban, 'editor', f.client);
+    expect((await screen.findByTestId('weather-history')).textContent).toContain('Il progetto è stato salvato, ma i dati meteo non sono ancora disponibili. Riprova più tardi.');
+    expect(screen.queryByText(/TIMEOUT/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Riprova aggiornamento' }));
+    await waitFor(() => expect(f.calls.invoke).toEqual([{ location_id: 'loc-u' }]));
+  });
+
+  it('ruolo lettura: vede lo stato dello storico ma nessun “Riprova aggiornamento”', async () => {
+    tables.weather_fetch_runs = [run('run-x', 'loc-u', { status: 'errore', issued_at: null })];
+    tables.history = { 'loc-u': hist({ stato: 'non_riuscito', livello: 'insufficiente', ultima_ora: null, ore_finestra: 0 }) };
+    open(urban, 'viewer');
+    expect((await screen.findByTestId('weather-history')).textContent).toMatch(/dati meteo non sono ancora disponibili/);
+    expect(screen.queryByRole('button', { name: 'Riprova aggiornamento' })).toBeNull();
+  });
+
+  it('server senza la funzione dello storico: il pannello continua a funzionare', async () => {
+    delete tables.history;
+    open(urban);
+    await screen.findByTestId('weather-summary');
+    expect(screen.queryByTestId('weather-history-details')).toBeNull();
+    expect(screen.queryByTestId('weather-history')).toBeNull();
   });
 });
