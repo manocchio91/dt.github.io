@@ -27,6 +27,7 @@ import { Alert, DecisionOverview, DemoRibbon, Field, LevelPill, Section, Term } 
 import { ProjectMissing, useProject } from '../state/useProject';
 import { todayRome } from '../state/store';
 import { usePermissions } from '../state/permissions';
+import { useWorkMode } from '../state/preferences';
 import { GuideBanner } from '../components/guide';
 
 const num = (s: string): number | null => {
@@ -60,6 +61,7 @@ export default function AgriLabPage() {
   });
   const [decErrors, setDecErrors] = useState<string[]>([]);
   const { canEdit } = usePermissions();
+  const technical = useWorkMode() === 'tecnica';
 
   const agri = bundle?.agri ?? null;
   const assessments = useMemo(
@@ -179,9 +181,7 @@ export default function AgriLabPage() {
       <div>
         <p className="text-sm text-sand-600">{bundle.project.name}</p>
         <h1 className="text-2xl font-extrabold text-petrol-900">Decision Lab agricolo</h1>
-        <Link to={`/progetti/${bundle.project.id}/previsioni`} className="btn-primary mt-2">
-          Previsioni (Beta)
-        </Link>
+        {technical && <Link to={`/progetti/${bundle.project.id}/previsioni`} className="btn-secondary mt-2">Previsioni</Link>}
       </div>
       {bundle.project.mode === 'demo' && <DemoRibbon />}
       <GuideBanner
@@ -243,7 +243,7 @@ export default function AgriLabPage() {
       <Section
         id="a2"
         step={2}
-        title="Input agronomici"
+        title="Informazioni sulla coltura"
         aside={
           canEdit && draft && (
             <div className="flex gap-2">
@@ -257,6 +257,10 @@ export default function AgriLabPage() {
           )
         }
       >
+        <p className="text-sm"><strong>Vite · {agri.setup.cultivar || 'cultivar non indicata'}</strong> · irrigazione {agri.setup.irrigationSystem} · fase {agri.setup.phenology.stage ? PHENOLOGY_LABEL[agri.setup.phenology.stage] : 'non indicata'}.</p>
+        <details open={technical || !!draft}>
+          <summary className="cursor-pointer text-sm font-semibold text-petrol-700">Modifica dati agronomici</summary>
+          <div className="mt-3 space-y-3">
         {draft && <Alert tone="warn">Modifiche non salvate: la valutazione usa ancora gli input salvati.</Alert>}
         {!canEdit ? (
           <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[14rem_1fr]">
@@ -350,6 +354,8 @@ export default function AgriLabPage() {
         </>
         )}
         <p className="text-xs text-sand-600">Tutti i valori sono INSERITI DALL’UTENTE: un campo vuoto resta un dato mancante e riduce la fiducia.</p>
+          </div>
+        </details>
       </Section>
 
       <Section id="a3" step={3} title="Fase fenologica (conferma obbligatoria)">
@@ -455,7 +461,7 @@ export default function AgriLabPage() {
           <Alert tone="warn">Nessun dato meteo: stress termico e idrico non determinabili.</Alert>
         )}
 
-        <h3 className="pt-2 font-bold">Osservazioni in campo</h3>
+        <h3 className="pt-2 font-bold">Osservazioni dal campo</h3>
         <ul className="space-y-1 text-sm">
           {agri.observations.map((o) => (
             <li key={o.id} className="flex flex-wrap items-center gap-2 rounded bg-sand-100 px-3 py-1.5">
@@ -471,8 +477,10 @@ export default function AgriLabPage() {
           {agri.observations.length === 0 && <li>Nessuna osservazione.</li>}
         </ul>
         {canEdit && (
-        <fieldset className="grid gap-3 rounded-lg border-2 border-sand-200 p-3 sm:grid-cols-2 lg:grid-cols-4">
-          <legend className="px-1 font-semibold">Registra osservazione (oggi)</legend>
+        <details>
+          <summary className={`${technical ? 'btn-secondary' : 'btn-primary'} inline-flex cursor-pointer`}>+ Aggiungi osservazione</summary>
+        <fieldset className="mt-3 grid gap-3 rounded-lg border-2 border-sand-200 p-3 sm:grid-cols-2 lg:grid-cols-4">
+          <legend className="px-1 font-semibold">Osservazione di oggi</legend>
           <Field label="Zona" htmlFor="oz">
             <select id="oz" className="input" value={obs.zoneId || agri.zones[0]?.id} onChange={(e) => setObs({ ...obs, zoneId: e.target.value })}>
               {agri.zones.map((z) => (
@@ -511,7 +519,7 @@ export default function AgriLabPage() {
               Registra
             </button>
           </div>
-        </fieldset>
+        </fieldset></details>
         )}
         <p className="text-xs text-sand-600">
           <Link to={`/progetti/${bundle.project.id}/documenti`} className="font-semibold text-petrol-700 underline">
@@ -521,7 +529,12 @@ export default function AgriLabPage() {
         </p>
       </Section>
 
-      <Section id="a5" step={5} title="Componenti per zona (lette separatamente)">
+      <Section id="a5" step={5} title="Dove devo controllare?">
+        <ol className="mb-4 space-y-2">
+          {sorted.map((a, i) => <li key={a.zoneId} className="rounded-lg border border-sand-200 p-3"><p className="flex flex-wrap items-center gap-2 font-bold">{i + 1}. {a.zoneName} <LevelPill level={a.priority} prefix="priorità" /> <span className="text-sm text-sand-600">fiducia {a.confidence}</span></p><p className="mt-1 text-sm">{a.motivation}</p>{a.missingData.length > 0 && <p className="text-xs text-sand-600">Dati mancanti: {a.missingData.join(', ')}.</p>}</li>)}
+        </ol>
+        <details open={technical}>
+          <summary className="cursor-pointer text-sm font-semibold text-petrol-700">Mostra analisi completa</summary>
         <div className="overflow-x-auto">
           <table className="table-base min-w-[48rem]">
             <thead>
@@ -555,9 +568,10 @@ export default function AgriLabPage() {
         <p className="text-xs text-sand-600">
           Nessun indice unico. Regola di priorità dichiarata: {assessments[0]?.priorityRule} Modello <code>demo-vineyard-components@0.1.0</code>.
         </p>
+        </details>
       </Section>
 
-      <Section id="a6" step={6} title="Zone da controllare">
+      {technical && <Section id="a6" step={6} title="Zone da controllare — dettaglio tecnico">
         <ol className="space-y-2">
           {sorted.map((a, i) => (
             <li key={a.zoneId} className="rounded-lg border border-sand-200 p-3">
@@ -578,13 +592,13 @@ export default function AgriLabPage() {
             </li>
           ))}
         </ol>
-      </Section>
+      </Section>}
 
       {selected && (
         <Section
           id="a7"
           step={7}
-          title={`Confronto tra misure — ${selected.zoneName}`}
+          title={`Confronta le alternative — ${selected.zoneName}`}
           aside={
             assessments.length > 1 && (
               <select className="input w-auto" aria-label="Zona" value={selected.zoneId} onChange={(e) => setZoneSel(e.target.value)}>
@@ -645,8 +659,8 @@ export default function AgriLabPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Esito" htmlFor="dout">
               <select id="dout" className="input" value={dec.outcome} onChange={(e) => setDec({ ...dec, outcome: e.target.value as DecisionOutcome })}>
-                <option value="accettata">Procedo con la misura scelta</option>
-                <option value="modificata">Procedo con modifiche</option>
+                <option value="accettata">Registro l’alternativa selezionata</option>
+                <option value="modificata">Registro la scelta con modifiche</option>
                 <option value="rifiutata">Nessuna delle misure</option>
                 <option value="inviata_a_esperto">Consulto l’agronomo prima di decidere</option>
               </select>
@@ -680,7 +694,8 @@ export default function AgriLabPage() {
       )}
 
       {lastDecision && (
-        <Section id="a9" step={9} title="Verifica successiva della risposta del vigneto">
+        <Section id="a9" step={9} title="Prima → oggi: verifica successiva">
+          <p className="text-sm font-semibold">Il confronto documenta il cambiamento osservato, senza attribuirlo automaticamente alla decisione.</p>
           <p className="text-sm">
             Ultima decisione del {new Date(lastDecision.createdAt).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })} · {lastDecision.outcome}
             {lastDecision.chosen && ` · ${lastDecision.chosen.replace(/_/g, ' ')}`} · supervisore: {lastDecision.supervisor}

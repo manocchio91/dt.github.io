@@ -21,6 +21,7 @@ import { Alert, DemoRibbon, Field, Section, Term } from '../components/ui';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { downloadText } from '../state/store';
 import { usePermissions } from '../state/permissions';
+import { useWorkMode } from '../state/preferences';
 import { PathGuide } from '../components/guide';
 
 type Triple = [number, number, number];
@@ -84,6 +85,7 @@ export default function ComparePage() {
   const [author, setAuthor] = useState('');
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const perms = usePermissions();
+  const technical = useWorkMode() === 'tecnica';
 
   const grid = useMemo(() => (bundle?.area ? buildGrid(bundle.area.geometry, suggestedCellSize(bundle.area.areaM2)) : null), [bundle?.area]);
   if (!bundle) return <ProjectMissing ready={ready} />;
@@ -202,6 +204,13 @@ export default function ComparePage() {
 
       {comparable && (
         <>
+          <Section title="Alternative a colpo d’occhio">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {runs.map((r) => <article key={r.scenarioId} className="rounded-lg border-2 border-sand-200 p-4"><h3 className="font-bold">Scenario {labels[r.scenarioId]}</h3><dl className="mt-2 space-y-1 text-sm"><div><dt className="font-semibold">Effetto stimato</dt><dd>{out(r, 'delta_t_air') ? <DataBadge value={out(r, 'delta_t_air')!} compact /> : 'Non disponibile'}</dd></div><div><dt className="font-semibold">Costo indicativo</dt><dd>{eur(r.costs.capex)}</dd></div><div><dt className="font-semibold">Acqua</dt><dd>{eur(r.costs.waterM3Year, 'm³/anno')}</dd></div><div><dt className="font-semibold">Manutenzione</dt><dd>{[...new Set(r.costs.lines.map((l) => l.maintenance))].join(', ') || 'Non indicata'}</dd></div></dl></article>)}
+            </div>
+          </Section>
+          <details open={technical} className="space-y-4">
+            <summary className="cursor-pointer rounded-lg border-2 border-petrol-500 bg-white p-3 font-bold text-petrol-700">Mostra confronto tecnico completo</summary>
           <Section title="Tabella di confronto">
             <div className="overflow-x-auto">
               <table className="table-base min-w-[44rem]">
@@ -302,6 +311,7 @@ export default function ComparePage() {
               {runs.length > 3 && <p className="text-xs text-sand-600">Mostrate le prime 3 mappe; i valori di tutti gli scenari sono in tabella.</p>}
             </Section>
           )}
+          </details>
 
           {perms.canEdit ? (
           <Section title="Decisione motivata">

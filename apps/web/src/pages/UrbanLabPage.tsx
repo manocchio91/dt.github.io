@@ -222,9 +222,7 @@ export default function UrbanLabPage() {
           <h1 className="text-2xl font-extrabold text-petrol-900">Decision Lab urbano</h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link to={`/progetti/${bundle.project.id}/previsioni`} className="btn-secondary">
-            Previsioni (Beta)
-          </Link>
+          {mode === 'tecnica' && <Link to={`/progetti/${bundle.project.id}/previsioni`} className="btn-secondary">Previsioni</Link>}
           <Link to={`/progetti/${bundle.project.id}/confronto`} className="btn-primary">
             Confronta e decidi →
           </Link>
@@ -244,6 +242,7 @@ export default function UrbanLabPage() {
           { done: scenarios.length >= 2, label: 'crea un secondo scenario da confrontare', anchor: 'u5' },
         ]}
       />
+      {mode === 'guidata' && <h2 className="text-xl font-extrabold text-petrol-900">Cosa sta succedendo?</h2>}
       <WeatherPanel bundle={bundle} />
 
       <Section id="u1" step={1} title="Area reale">
@@ -263,7 +262,7 @@ export default function UrbanLabPage() {
 
       {area && aoiOk && (
         <>
-          <Section id="u2" step={2} title="Quale periodo vuoi usare per confrontare gli interventi?">
+          <Section id="u2" step={2} title={mode === 'guidata' ? 'Periodo da analizzare' : 'Quale periodo vuoi usare per confrontare gli interventi?'}>
             <p className="text-sm">Scegli, per esempio, un mese estivo particolarmente caldo.</p>
             <CanEdit
               fallback={
@@ -398,7 +397,7 @@ export default function UrbanLabPage() {
           </Section>
 
           {baseline && (
-            <Section id="u5" step={5} title="SIMULAZIONE DEGLI INTERVENTI">
+            <Section id="u5" step={5} title={mode === 'guidata' ? 'Cosa vuoi provare?' : 'SIMULAZIONE DEGLI INTERVENTI'}>
               <p className="text-sm">Gli effetti di alberi, superfici e nebulizzazione sono stime comparative illustrative. Non costituiscono una previsione validata né un atto tecnico.</p>
               <p className="text-sm">Tutti gli scenari usano lo stesso periodo storico di riferimento, così il confronto resta coerente.</p>
               <div className="flex flex-wrap gap-2" role="tablist" aria-label="Scenari">
@@ -623,7 +622,7 @@ export default function UrbanLabPage() {
             <Section
               id="u7"
               step={7}
-              title="RISULTATO SINTETICO"
+              title={mode === 'guidata' ? 'Cosa cambia? Prima → dopo' : 'RISULTATO SINTETICO'}
               aside={
                 perms.canEdit && (
                 <div className="flex flex-wrap gap-2">
@@ -714,7 +713,7 @@ export default function UrbanLabPage() {
             <Section id="u8" step={8} title="Confronto, costi e decisione">
               <p className="text-sm">Confronta gli scenari affiancati, valuta costi, acqua, manutenzione, vincoli e incertezza, poi motiva la scelta.</p>
               <Link to={`/progetti/${bundle.project.id}/confronto`} className="btn-secondary">
-                Apri il confronto
+                Confronta con un'altra alternativa
               </Link>
             </Section>
           )}

@@ -17,6 +17,7 @@ import { Alert, Field, Section } from '../components/ui';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { usePermissions } from '../state/permissions';
 import { PathGuide } from '../components/guide';
+import { useWorkMode } from '../state/preferences';
 
 const OUTPUT_OPTIONS = [
   { key: 'delta_t_surface', variable: 'temperatura_superficiale', label: 'Riduzione T superficiale media' },
@@ -34,6 +35,7 @@ export default function VerifyPage() {
   const [rationale, setRationale] = useState('');
   const [msg, setMsg] = useState<string | null>(null);
   const { canEdit } = usePermissions();
+  const technical = useWorkMode() === 'tecnica';
 
   if (!bundle) return <ProjectMissing ready={ready} />;
   const withRuns = bundle.scenarios.filter((s) => bundle.runs.some((r) => r.scenarioId === s.id && r.outputs.length));
@@ -88,6 +90,14 @@ export default function VerifyPage() {
       <PathGuide where={{ step: 7, what: 'quanto previsto confrontato con quanto misurato dopo l’intervento.', why: 'solo la verifica dice se la scelta ha funzionato e cosa migliorare la prossima volta.' }} />
       {msg && <Alert tone="info">{msg}</Alert>}
 
+      {!technical && bundle.decisions.some((d) => d.sector === 'urban') && (
+        <Alert tone="ok" title="Decisione registrata">
+          <p>Dopo la realizzazione potrai confrontare il risultato previsto con quello osservato.</p>
+          <a className="mt-2 inline-block font-semibold underline" href="#verification-plan">Pianifica la verifica</a>
+        </Alert>
+      )}
+
+      <div id="verification-plan">
       {withRuns.length === 0 ? (
         <Alert tone="warn">
           Prima calcola almeno uno scenario. <Link to={`/progetti/${bundle.project.id}/urbano`} className="underline">Vai al Lab</Link>
@@ -168,6 +178,7 @@ export default function VerifyPage() {
           </div>
         </Section>
       )}
+      </div>
 
       {plan && (
         <Section
