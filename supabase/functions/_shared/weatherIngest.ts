@@ -8,6 +8,8 @@ import {
   OM_DEFAULT_MODEL,
   OpenMeteoError,
   parseForecastResponse,
+  pastAvailabilityWarnings,
+  pastDaysFor,
   splitAtIssue,
   toObservationRows,
   toPointRows,
@@ -50,6 +52,9 @@ export interface IngestSummary {
   observations: number;
   grid: { latitude: number; longitude: number; elevation: number | null } | null;
   model: string;
+  /** past_days richiesto a Open-Meteo; backfill = recupero completo dello storico (prima acquisizione o riparazione) */
+  past_days?: number;
+  backfill?: boolean;
   warnings: string[];
   error?: { code: string; message: string };
 }
@@ -60,6 +65,8 @@ export interface IngestOptions {
   now?: Date;
   model?: string;
   fetch?: FetchOptions;
+  /** riparazione esplicita: riscarica l'intero storico anche se già presente (le ore esistenti non si duplicano) */
+  repair?: boolean;
   /** solo log tecnici: id, esito, conteggi (mai dati personali) */
   log?: (msg: string) => void;
 }
@@ -81,9 +88,9 @@ export async function ingestLocation(admin: IngestClient, locationId: string, o:
   const log = o.log ?? (() => {});
   if (!UUID.test(locationId)) throw new IngestError(400, 'PARAMETRI', 'location_id non valido');
   const model = o.model ?? OM_DEFAULT_MODEL;
-  const loc = await admin.from('weather_locations').select('id, latitude, longitude, scope, active').eq('id', locationId).maybeSingle();
+  const loc = await admin.from('weather_locations').select('id, latitude, longitude, scope, active, timezone').eq('id', locationId).maybeSingle();
   if (loc.error) throw new IngestError(500, 'DATABASE', loc.error.message);
-  const l = loc.data as { id: string; latitude: number; longitude: number; scope: WeatherScope; active: boolean } | null;
+  const l = loc.data as { id: string; latitude: number; longitude: number; scope: WeatherScope; active: boolean; timezone: string | null } | null;
   if (!l) throw new IngestError(404, 'PARAMETRI', 'Località non trovata');
   if (!l.active) throw new IngestError(409, 'PARAMETRI', 'Località disattivata');
   const coordErr = validateCoordinates(l.latitude, l.longitude);
@@ -111,11 +118,15 @@ export async function ingestLocation(admin: IngestClient, locationId: string, o:
     };
   }
   const runId = String(b.run.id);
+  const missingFrom = o.repair ? null : await firstMissingHour(admin, l.id, issuedAt);
+  const pastDays = pastDaysFor(missingFrom, issuedAt);
+  const plan = { past_days: pastDays, backfill: missingFrom === null };
   try {
-    const { body, attempts } = await fetchForecastJson(buildIngestUrl(l, { model }), o.fetch);
+    const { body, attempts } = await fetchForecastJson(buildIngestUrl(l, { model, pastDays, timezone: l.timezone ?? undefined }), o.fetch);
     const parsed = parseForecastResponse(body, l.scope);
     const { forecast, past } = splitAtIssue(parsed, issuedAt);
     if (forecast.length === 0) throw new OpenMeteoError('DATI_ASSENTI', 'Nessuna ora futura nella risposta.');
+    const warnings = [...parsed.warnings, ...pastAvailabilityWarnings(parsed, past)];
     const meta = {
       issued_at: issuedAt,
       model,
@@ -132,9 +143,10 @@ export async function ingestLocation(admin: IngestClient, locationId: string, o:
     const done = await admin.rpc('weather_complete_fetch', { p_run: runId, p_meta: meta, p_points: toPointRows(forecast), p_observations: toObservationRows(parsed, past, l.scope) });
     if (done.error) throw new IngestError(500, 'DATABASE', done.error.message);
     const counts = done.data as { points: number; observations: number };
-    log(`open-meteo-ingest location=${l.id} esito=completata run=${runId} punti=${counts.points} tentativi=${attempts}`);
+    log(`open-meteo-ingest location=${l.id} esito=completata run=${runId} punti=${counts.points} storico=${counts.observations} past_days=${pastDays} tentativi=${attempts}`);
     return {
       ...base,
+      ...plan,
       run_id: runId,
       status: 'completata',
       issued_at: issuedAt,
@@ -143,7 +155,7 @@ export async function ingestLocation(admin: IngestClient, locationId: string, o:
       points: counts.points,
       observations: counts.observations,
       grid: parsed.grid,
-      warnings: parsed.warnings,
+      warnings,
     };
   } catch (e) {
     const code = e instanceof OpenMeteoError ? e.code : e instanceof IngestError ? e.code : 'INTERNO';
@@ -151,8 +163,29 @@ export async function ingestLocation(admin: IngestClient, locationId: string, o:
     // l'errore chiude solo questa acquisizione: i dati validi precedenti restano
     await admin.rpc('weather_fail_fetch', { p_run: runId, p_code: code, p_message: message });
     log(`open-meteo-ingest location=${l.id} esito=errore run=${runId} codice=${code}`);
-    return { ...base, run_id: runId, status: 'errore', issued_at: issuedAt, valid_from: null, valid_to: null, points: 0, observations: 0, grid: null, error: { code, message } };
+    return { ...base, ...plan, run_id: runId, status: 'errore', issued_at: issuedAt, valid_from: null, valid_to: null, points: 0, observations: 0, grid: null, error: { code, message } };
   }
+}
+
+export interface HistoryStatus {
+  stato: 'in_preparazione' | 'sufficiente' | 'incompleto' | 'non_riuscito';
+  prima_ora: string | null;
+  ultima_ora: string | null;
+  buchi: { da: string; a: string; ore: number }[];
+}
+
+/**
+ * Prima ora mancante dello storico (finestra di 7 giorni che termina all'ultima ora registrata),
+ * oppure l'ora successiva all'ultima registrata. null = nessuno storico: recupero iniziale completo.
+ * Se il controllo non risponde si ripiega sul recupero completo: le ore esistenti non si duplicano.
+ */
+export async function firstMissingHour(admin: IngestClient, locationId: string, issuedAt: string): Promise<string | null> {
+  const { data, error } = await admin.rpc('weather_history_status', { p_location: locationId, p_at: issuedAt });
+  if (error || !data) return null;
+  const s = data as HistoryStatus;
+  if (!s.ultima_ora) return null;
+  if (s.buchi.length > 0) return s.buchi[0]!.da;
+  return new Date(Date.parse(s.ultima_ora) + 3_600_000).toISOString();
 }
 
 /** Job pianificato: tutte le località attive, una alla volta; l'errore di una non ferma le altre. */

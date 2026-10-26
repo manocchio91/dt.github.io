@@ -113,6 +113,34 @@ export interface ForecastRequestOptions {
   forecastDays?: number;
   pastDays?: number;
   model?: string;
+  /** fuso della località: decide l'inizio dei giorni di past_days (gli istanti restano UTC) */
+  timezone?: string;
+}
+
+/** Storico obiettivo: 7 giorni completi di ore passate per ogni località. */
+export const HISTORY_TARGET_HOURS = 168;
+/** Ore continue minime perché lo storico sia sufficiente per Timestral. */
+export const HISTORY_MIN_CONTINUOUS_HOURS = 72;
+/**
+ * past_days della prima acquisizione. Open-Meteo parte dalla mezzanotte locale di N giorni prima,
+ * calcolata con lo scostamento ATTUALE dal tempo UTC: subito dopo mezzanotte o dopo il cambio
+ * dell'ora legale, 7 giorni darebbero 167 ore. Con 8 le ore passate sono sempre almeno 168.
+ */
+export const BACKFILL_PAST_DAYS = 8;
+/** past_days ordinario del job pianificato quando lo storico non ha buchi. */
+export const ROUTINE_PAST_DAYS = 1;
+
+/**
+ * past_days necessari per coprire le ore a partire da `missingFrom` (prima ora mancante).
+ * null = località senza storico: recupero iniziale completo. Si scarica solo ciò che manca,
+ * arrotondato ai giorni interi che l'API accetta; le ore già presenti non si duplicano.
+ */
+export function pastDaysFor(missingFrom: string | null, issuedAt: string): number {
+  if (missingFrom === null) return BACKFILL_PAST_DAYS;
+  const span = Date.parse(issuedAt) - Date.parse(missingFrom);
+  if (!Number.isFinite(span) || span <= 0) return ROUTINE_PAST_DAYS;
+  // +1 h: margine per lo scostamento attuale applicato da Open-Meteo all'inizio della serie
+  return Math.min(BACKFILL_PAST_DAYS, Math.max(ROUTINE_PAST_DAYS, Math.ceil((span + 3_600_000) / 86_400_000)));
 }
 
 export function buildIngestUrl(loc: WeatherLocationInput, o: ForecastRequestOptions = {}): string {
@@ -122,7 +150,7 @@ export function buildIngestUrl(loc: WeatherLocationInput, o: ForecastRequestOpti
     latitude: loc.latitude.toFixed(5),
     longitude: loc.longitude.toFixed(5),
     hourly: hourlyVariables(loc.scope).join(','),
-    timezone: 'Europe/Rome',
+    timezone: o.timezone ?? 'Europe/Rome',
     // istanti assoluti (secondi UTC): nessuna ambiguità al cambio dell'ora legale
     timeformat: 'unixtime',
     wind_speed_unit: 'ms',
@@ -283,11 +311,20 @@ export function splitAtIssue(p: ParsedForecast, issuedAt: string): { forecast: F
   return { forecast: p.hours.filter((h) => Date.parse(h.validAt) >= t), past: p.hours.filter((h) => Date.parse(h.validAt) < t) };
 }
 
-/** Variabili delle ore passate conservate come storico (base per backtest e per Timestral). */
+/**
+ * Variabili delle ore passate conservate come storico (base per backtest e per Timestral):
+ * tutte quelle richieste per l'ambito. Le ore senza valore non si registrano (nessun valore inventato).
+ */
 export const HISTORY_VARIABLES: Record<WeatherScope, HourlyVariable[]> = {
-  urban: ['temperature_2m', 'relative_humidity_2m', 'precipitation', 'wind_speed_10m', 'shortwave_radiation'],
-  agricultural: ['temperature_2m', 'relative_humidity_2m', 'precipitation', 'shortwave_radiation', 'et0_fao_evapotranspiration', 'soil_temperature_6cm', 'soil_moisture_9_to_27cm'],
+  urban: hourlyVariables('urban'),
+  agricultural: hourlyVariables('agricultural'),
 };
+
+/** Variabili presenti nella risposta ma senza alcun valore nelle ore passate: dichiarate, non stimate. */
+export function pastAvailabilityWarnings(p: ParsedForecast, past: ForecastHour[]): string[] {
+  if (past.length === 0) return [];
+  return p.variables.filter((v) => past.every((h) => typeof h.values[v] !== 'number')).map((v) => `${v}: non disponibile per le ore passate`);
+}
 
 export function toPointRows(hours: ForecastHour[]): ({ valid_at: string } & Partial<Record<HourlyVariable, number | null>>)[] {
   return hours.map((h) => ({ valid_at: h.validAt, ...h.values }));

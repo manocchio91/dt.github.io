@@ -138,7 +138,10 @@ describe('Emissione, ore passate e idempotenza', () => {
     expect(forecast.length).toBeGreaterThanOrEqual(72);
     expect(past.every((h) => Date.parse(h.validAt) < Date.parse(issued))).toBe(true);
     const obs = toObservationRows(p, past, 'agricultural');
-    expect(new Set(obs.map((o) => o.variable))).toEqual(new Set(['temperature_2m', 'relative_humidity_2m', 'precipitation', 'shortwave_radiation', 'et0_fao_evapotranspiration', 'soil_temperature_6cm', 'soil_moisture_9_to_27cm']));
+    // storico: tutte le variabili dell'ambito che hanno almeno un valore nelle ore passate (nessun valore inventato)
+    const withValues = hourlyVariables('agricultural').filter((v) => past.some((h) => typeof h.values[v] === 'number'));
+    expect(new Set(obs.map((o) => o.variable))).toEqual(new Set(withValues));
+    for (const v of ['temperature_2m', 'relative_humidity_2m', 'precipitation', 'shortwave_radiation', 'et0_fao_evapotranspiration', 'soil_temperature_6cm', 'soil_moisture_9_to_27cm']) expect(withValues).toContain(v);
     expect(obs.find((o) => o.variable === 'soil_moisture_9_to_27cm')!.unit).toBe('m³/m³');
   });
 

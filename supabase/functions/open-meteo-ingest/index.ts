@@ -1,7 +1,9 @@
 // Edge Function (Deno) — acquisizione Open-Meteo → Supabase.
 // Chiamate ammesse:
 //  * pianificate (pg_cron + pg_net) con intestazione x-cron-secret = OPEN_METEO_CRON_SECRET:
-//    body {"all_active": true} oppure {"location_id": "<uuid>"};
+//    body {"all_active": true} oppure {"location_id": "<uuid>"} (anche dal trigger sulla nuova località,
+//    per il recupero iniziale dei 7 giorni); {"location_id": "<uuid>", "repair": true} riscarica lo
+//    storico completo (riparazione esplicita, mai dall'app);
 //  * manuali dall'app con il token dell'utente (ruolo "modifica", limite 10 minuti): body {"location_id": "<uuid>"};
 //  * GET: controllo di salute, senza dati né configurazione.
 // Pubblicata con --no-verify-jwt: il job pianificato non ha un token utente. L'autenticazione è
@@ -30,7 +32,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
   if (req.method === 'GET') return json(200, { servizio: 'open-meteo-ingest', stato: 'attivo' });
   if (req.method !== 'POST') return json(405, { error: 'Metodo non ammesso' });
-  let body: { location_id?: string; all_active?: boolean };
+  let body: { location_id?: string; all_active?: boolean; repair?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -51,13 +53,13 @@ Deno.serve(async (req) => {
         return json(failed ? 207 : 200, { results, completate: results.length - failed, errori: failed });
       }
       if (!body.location_id) return json(400, { error: 'location_id richiesto' });
-      return json(200, await ingestLocation(admin, body.location_id, { trigger: 'pianificata', fetch: fetchOpts, log }));
+      return json(200, await ingestLocation(admin, body.location_id, { trigger: 'pianificata', fetch: fetchOpts, log, repair: body.repair === true }));
     }
 
     // richiesta manuale: token dell'utente verificato da Supabase Auth, poi autorizzazione e limite nel database
     const jwt = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
     if (!jwt) return json(401, { error: 'Autenticazione richiesta' });
-    if (body.all_active) return json(403, { error: 'Acquisizione completa riservata al job pianificato' });
+    if (body.all_active || body.repair) return json(403, { error: 'Acquisizione completa riservata al job pianificato' });
     if (!body.location_id) return json(400, { error: 'location_id richiesto' });
     const user = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: `Bearer ${jwt}` } }, auth: { persistSession: false } }) as unknown as IngestClient;
     const userId = await authorizeManual(user, body.location_id);
