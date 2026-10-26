@@ -3,7 +3,9 @@
  *
  * Dati temporanei con prefisso MDT_TIMESTRAL_TEST_<timestamp>, creati con le procedure normali
  * (Auth Admin per gli utenti di prova, create_organization, add_member_by_email, save_project,
- * località con RLS, acquisizione tramite la Edge Function open-meteo-ingest).
+ * località con RLS). Il recupero dello storico di 7 giorni parte dal server alla creazione della località
+ * (trigger weather_initial_fetch → Edge Function open-meteo-ingest): Timestral legge SOLO lo storico salvato
+ * su Supabase e parte solo se weather_history_status lo dichiara sufficiente (almeno 72 ore continue).
  * Le previsioni passano dalla logica del proxy (supabase/functions/_shared/forecastProxy.ts), eseguita
  * qui nell'ambiente di test locale: il container NON è esposto in rete.
  *
@@ -13,8 +15,8 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { coverage, hashOf, mae, NaivePersistenceAdapter, SeasonalNaiveAdapter, seedCampobasso, seedVineyard, VARIABLE_UNITS, wql, type ForecastRequest } from '../../packages/domain/src/index';
-import { buildIngestUrl, fetchForecastJson, parseForecastResponse, type HourlyVariable } from '../../packages/domain/src/connectors/openMeteoForecast';
+import { buildHistoryContext, coverage, hashOf, mae, NaivePersistenceAdapter, SeasonalNaiveAdapter, seedCampobasso, seedVineyard, VARIABLE_UNITS, wql, type ForecastRequest, type ObservationRow } from '../../packages/domain/src/index';
+import type { HourlyVariable } from '../../packages/domain/src/connectors/openMeteoForecast';
 import { boundsFor, PROXY_MODELS, proxyForecast, type ProxyClient, type ProxyRequest, type ServiceResponse } from '../../supabase/functions/_shared/forecastProxy';
 
 const readEnv = (f: string) =>
@@ -104,9 +106,16 @@ async function setup() {
     if (ins.error) throw new Error(`località ${key}: ${ins.error.message}`);
     s.locations[key] = ins.data.id;
     save();
-    const inv = await A.functions.invoke('open-meteo-ingest', { body: { location_id: ins.data.id } });
-    if (inv.error) throw new Error(`acquisizione ${key}: ${inv.error.message}`);
-    console.log(`${key}: acquisizione Open-Meteo ${(inv.data as { status: string; points: number }).status}, ${(inv.data as { points: number }).points} ore`);
+    // nessuna chiamata manuale: il recupero iniziale lo avvia il server alla creazione della località
+    let st: { stato: string; ore_finestra: number } | null = null;
+    for (let i = 0; i < 36; i++) {
+      const h = await A.rpc('weather_history_status', { p_location: ins.data.id });
+      if (h.error) throw new Error(`stato dello storico ${key}: ${h.error.message}`);
+      st = h.data as { stato: string; ore_finestra: number };
+      if (st.stato !== 'in_preparazione') break;
+      await new Promise((res) => setTimeout(res, 5000));
+    }
+    console.log(`${key}: storico ${st?.stato}, ${st?.ore_finestra} ore valide su 168`);
   }
   console.log(`Creati per ${prefix}: 3 utenti, 2 organizzazioni, 2 progetti, 2 località. Password non mostrata.`);
 }
@@ -150,31 +159,38 @@ async function run() {
   for (const key of ['urbano', 'agricolo'] as const) {
     const vars = VARIABLES[key];
     const { data: fr } = await admin.from('weather_fetch_runs').select('id, issued_at, response_grid_latitude, response_grid_longitude, response_elevation').eq('location_id', s.locations[key]).eq('status', 'completata').order('requested_at', { ascending: false }).limit(1).single();
-    const issued = Date.parse(fr!.issued_at);
-    const { data: stored } = await admin.from('weather_observations').select('observed_at, variable, value').eq('location_id', s.locations[key]).eq('source', 'open_meteo');
-    const storedHours = new Set((stored ?? []).map((o) => o.observed_at)).size;
-    // storico di 7 giorni dalla stessa API e dalla stessa cella (la Edge Function ne conserva ~24 h: sotto il minimo di 72)
     const l = LOC[key];
-    const { body } = await fetchForecastJson(buildIngestUrl({ latitude: l.lat, longitude: l.lon, scope: l.scope }, { pastDays: 7, forecastDays: 1 }), { timeoutMs: 15_000, retries: 2 });
-    const parsed = parseForecastResponse(body, l.scope);
-    const past = parsed.hours.filter((h) => Date.parse(h.validAt) < issued);
+    // storico SOLO da Supabase: stato calcolato dal server, poi le righe di weather_observations
+    const { data: hs } = await admin.rpc('weather_history_status', { p_location: s.locations[key] });
+    const st = hs as { livello: string; ore_finestra: number; ore_continue: number; sufficiente_timestral: boolean; buchi: unknown[] };
+    const stored: ObservationRow[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await admin.from('weather_observations').select('observed_at, variable, value, unit, source').eq('location_id', s.locations[key]).eq('source', 'open_meteo').in('variable', vars).order('id').range(from, from + 999);
+      if (error) throw new Error(error.message);
+      stored.push(...(data as ObservationRow[]));
+      if (data.length < 1000) break;
+    }
+    if (!st.sufficiente_timestral) {
+      record(`S-${key}`, `Storico (${key}) letto da Supabase`, false, `storico ${st.livello}, ${st.ore_continue} ore continue: sotto il minimo, Timestral non parte`);
+      continue;
+    }
+    const hctx = buildHistoryContext(stored, vars, { before: fr!.issued_at, maxHours: 24 * 28 });
+    const past = hctx.timestamps.map((validAt, i) => ({ validAt, values: Object.fromEntries(vars.map((v, j) => [v, hctx.context[j]![i] ?? null])) as Partial<Record<HourlyVariable, number | null>> }));
     const T = past.length;
-    // coerenza: sulle ore in comune lo storico integrato coincide con quello salvato dalla Edge Function
-    const storedT = new Map((stored ?? []).filter((o) => o.variable === 'temperature_2m').map((o) => [Date.parse(o.observed_at), o.value as number]));
-    const diffs = past.filter((h) => storedT.has(Date.parse(h.validAt))).map((h) => Math.abs((h.values.temperature_2m ?? NaN) - storedT.get(Date.parse(h.validAt))!));
-    record(`S-${key}`, `Storico (${key}): Edge Function + integrazione dalla stessa cella`, T >= 72 && diffs.length > 0 && Math.max(...diffs) <= 0.5, `${storedHours} ore salvate dalla Edge Function; ${T} ore usate come contesto (7 giorni, stessa API e cella ${parsed.grid.latitude}/${parsed.grid.longitude}); scarto massimo sulle ${diffs.length} ore in comune ${fmt(Math.max(...diffs), 2)} °C`);
-    const context = vars.map((v) => past.map((h) => h.values[v] ?? null));
-    const lastTs = past.at(-1)!.validAt;
+    record(`S-${key}`, `Storico (${key}) letto da Supabase, nessuna richiesta a Open-Meteo per lo storico`, T >= 72 && hctx.missing.every((m) => m === 0), `stato ${st.livello}: ${st.ore_finestra}/168 ore valide, ${st.ore_continue} continue, lacune ${st.buchi.length}; contesto ${T} ore ordinate e consecutive (${hctx.provenance.from} → ${hctx.provenance.to}), ${vars.length} variabili, valori mancanti ${hctx.missing.reduce((a, b) => a + b, 0)}, unità ${hctx.units.join(' ')}`);
+    const context = hctx.context;
+    const lastTs = hctx.provenance.to;
 
     // (A) previsione reale registrata su Supabase tramite il proxy
     const req: ProxyRequest = {
       schema_version: 1, model: M5, revision: PROXY_MODELS[M5]!, frequency: '1h', prediction_length: 24, context: [context],
       mdt: {
         project_id: s.projects[key], location_id: s.locations[key], context: key, issued_at: lastTs,
-        variables: vars.map((v) => ({ name: v, unit: parsed.units[v] ?? '' })),
+        variables: vars.map((v, j) => ({ name: v, unit: hctx.units[j]! })),
         lineage: {
-          source: 'Open-Meteo Forecast API (best_match), stessa cella della Edge Function; ultime 24 h verificate con i dati salvati dalla Edge Function',
-          period: { from: past[0]!.validAt, to: lastTs }, coordinates: { latitude: parsed.grid.latitude, longitude: parsed.grid.longitude, elevation: parsed.grid.elevation },
+          source: 'Open-Meteo, storico salvato su Supabase (weather_observations con fetch_run_id): dato territoriale modellato, non rilevato da sensore locale',
+          period: { from: hctx.provenance.from, to: lastTs }, coordinates: { latitude: fr!.response_grid_latitude, longitude: fr!.response_grid_longitude, elevation: fr!.response_elevation },
+          history: { hours: T, valid_hours_window: st.ore_finestra, continuous_hours: st.ore_continue, level: st.livello },
           note: 'Test tecnico: storico di 7 giorni, non sufficiente per una validazione scientifica.',
         },
       },
@@ -278,7 +294,7 @@ function report(s: State) {
   writeFileSync(file, [
     `# Timestral-5M reale — test tecnico su Supabase di TEST (${day})`, '',
     `- Modello: ${M5} @ ${PROXY_MODELS[M5]} (pesi Modified MIT, codice Apache-2.0), container locale su CPU, non esposto in rete`,
-    `- Dati: Open-Meteo reale (Edge Function + storico di 7 giorni della stessa cella); dati temporanei \`${s.prefix}\`, eliminati a fine test`,
+    `- Dati: Open-Meteo reale: storico di 7 giorni salvato su Supabase dalla Edge Function (recupero iniziale alla creazione della località), letto senza ulteriori richieste a Open-Meteo; dati temporanei \`${s.prefix}\`, eliminati a fine test`,
     `- Esito: ${ok}/${results.length} controlli superati`, '',
     '| ID | Controllo | Esito | Evidenza |', '|---|---|---|---|',
     ...results.map((r) => `| ${r.id} | ${r.title} | ${r.ok ? '✔' : '✖'} | ${r.evidence.replace(/\|/g, '/')} |`), '',

@@ -19,8 +19,10 @@ import {
   type ExpertThreshold,
   type ForecastBand,
   type ForecastRecord,
+  type ForecastRequest,
   type ForecastResult,
   type ProjectBundle,
+  type WeatherInputProvenance,
 } from '@mdt/domain';
 import { Alert, Section, StatusBadge } from '../components/ui';
 import { formatNumber } from '../components/DataBadge';
@@ -33,6 +35,7 @@ import { usePermissions } from '../state/permissions';
 import { useAuth } from '../state/auth';
 import { useStore } from '../state/store';
 import { fmtDay, fmtHour, forecastServiceUrl, makeAdapter, MODEL_CHOICES, VARIABLE_LABEL, type ModelChoice } from '../state/forecast';
+import { listLocations, loadHistoryStatus, loadTimestralInput } from '../state/weather';
 
 const CONTEXT_DAYS = 28;
 const MIN_DAYS = 14;
@@ -47,6 +50,16 @@ const GUIDED_MODEL_LABEL: Partial<Record<ModelChoice, string>> = {
 export const ADVANCED_UNAVAILABLE = { title: 'Il modello avanzato non è ancora disponibile.', text: 'Puoi consultare la previsione di base.' };
 /** Servizio configurato ma spento o non raggiungibile in questo momento. */
 export const ADVANCED_DOWN = { title: 'Il modello avanzato non è disponibile.', text: 'Puoi continuare con la previsione di base.' };
+/** Archivio collegato ma storico meteo sotto il minimo: il modello avanzato non parte. */
+export const HISTORY_TOO_SHORT = { title: 'Storico non ancora sufficiente per il modello avanzato.', text: 'Puoi continuare con la previsione di base.' };
+const HISTORY_SHORT_MARK = 'storico-insufficiente';
+/** Grandezze della pagina → variabili Open-Meteo dello storico salvato. */
+const OM_VARIABLE: Record<string, string> = { temperatura_aria: 'temperature_2m', umidita_relativa: 'relative_humidity_2m', umidita_suolo: 'soil_moisture_9_to_27cm' };
+type LiveInput =
+  | { status: 'off' | 'loading' }
+  | { status: 'short'; hours: number; target: number }
+  | { status: 'ready'; locationId: string; request: ForecastRequest; provenance: WeatherInputProvenance }
+  | { status: 'error'; message: string };
 export const HUMIDITY_CLIPPED_NOTE = 'L’intervallo è stato riportato entro i limiti fisici dell’umidità, da 0% a 100%.';
 
 const BAND_PLAIN: Record<ForecastBand, string> = { '80': '8 casi su 10', '90': '9 casi su 10', '98': '98 casi su 100' };
@@ -62,7 +75,7 @@ export default function ForecastPage() {
 function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: ReturnType<typeof useProject>['update'] }) {
   const { canEdit } = usePermissions();
   const technical = useWorkMode() === 'tecnica';
-  const { session } = useAuth();
+  const { session, client } = useAuth();
   const urban = bundle.project.sector !== 'agriculture';
   const context = urban ? 'urbano' : 'agricolo';
   const dataset = urban ? URBAN_DATASET : VINEYARD_DATASET;
@@ -103,19 +116,69 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
   const { kind } = useStore();
   // il modello avanzato passa dal proxy autenticato: serve un progetto dell'organizzazione (archivio condiviso)
   const connected = kind === 'supabase' && !!token;
+  const isTimestralChoice = MODEL_CHOICES.find((m) => m.id === model)!.timestral;
+
+  // con l'archivio dell'organizzazione il modello avanzato legge lo storico Open-Meteo salvato su Supabase
+  // (mai un secondo storico scaricato da Open-Meteo) e parte solo se lo storico è sufficiente
+  const useHistory = connected && !!client && isTimestralChoice;
+  const [live, setLive] = useState<LiveInput>({ status: 'off' });
+  useEffect(() => {
+    if (!useHistory || !client) {
+      setLive({ status: 'off' });
+      return;
+    }
+    let alive = true;
+    setLive({ status: 'loading' });
+    (async () => {
+      const locs = await listLocations(client, bundle.project.id);
+      if (!locs[0]) return { status: 'short', hours: 0, target: 168 } as LiveInput;
+      const h = await loadHistoryStatus(client, locs[0].id);
+      if (!h?.sufficiente_timestral) return { status: 'short', hours: h?.ore_finestra ?? 0, target: h?.ore_obiettivo ?? 168 } as LiveInput;
+      const { request: req, provenance } = await loadTimestralInput(client, locs[0].id, OM_VARIABLE[variable]!, horizon);
+      return { status: 'ready', locationId: locs[0].id, request: req, provenance } as LiveInput;
+    })()
+      .then((x) => alive && setLive(x))
+      .catch((e: Error) => alive && setLive({ status: 'error', message: e.message }));
+    return () => {
+      alive = false;
+    };
+  }, [useHistory, client, bundle.project.id, variable, horizon]);
+  const liveRequest = live.status === 'ready' ? live.request : null;
+  const effectiveRequest = liveRequest ?? request;
 
   useEffect(() => {
     let alive = true;
     setRun({ status: 'loading' });
+    if (useHistory) {
+      if (live.status === 'loading' || live.status === 'off') return;
+      if (live.status === 'short') {
+        setRun({ status: 'unavailable', message: HISTORY_SHORT_MARK });
+        return;
+      }
+      if (live.status === 'error') {
+        setRun({ status: 'error', message: live.message });
+        return;
+      }
+    }
     const envelope = (req: typeof request) => ({
       project_id: bundle.project.id,
       context,
       variables: req.targets.map((t) => ({ name: t.variable, unit: t.unit })),
       issued_at: req.targets[0]!.timestamps.at(-1)!,
-      lineage: { source: `${dataset.meta.title} — ${dataset.meta.source}`, period: { from: req.targets[0]!.timestamps[0]!, to: req.targets[0]!.timestamps.at(-1)! } },
+      ...(live.status === 'ready'
+        ? {
+            location_id: live.locationId,
+            lineage: {
+              source: 'Open-Meteo, storico salvato su Supabase (dato territoriale modellato, non rilevato da sensore locale)',
+              period: { from: live.provenance.contextFrom, to: live.provenance.contextTo },
+              target_source: live.provenance.targetSource,
+              covariates: `previsione Open-Meteo emessa ${live.provenance.forecastIssuedAt}`,
+            },
+          }
+        : { lineage: { source: `${dataset.meta.title} — ${dataset.meta.source}`, period: { from: req.targets[0]!.timestamps[0]!, to: req.targets[0]!.timestamps.at(-1)! } } }),
     });
     makeAdapter(model, { token: async () => token, ...(connected ? { envelope } : { baseUrl: null }) })
-      .forecast(request)
+      .forecast(effectiveRequest)
       .then((result) => alive && setRun({ status: 'ok', result }))
       .catch((e: Error) => alive && setRun(e instanceof ForecastUnavailableError ? { status: 'unavailable', message: e.message } : { status: 'error', message: e.message }));
     Promise.all((['baseline-persistenza-stagionale', 'baseline-persistenza'] as const).map((m) => makeAdapter(m).forecast(request))).then((r) => alive && setBaselines(r));
@@ -123,16 +186,20 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, request, token, connected]);
+  }, [model, request, token, connected, live]);
 
   const result = run.status === 'ok' ? run.result : null;
   const b = FORECAST_BANDS[band];
   const q = result?.quantiles[0];
-  const observed = series.values.slice(origin, origin + horizon);
+  // previsione sullo storico reale: le osservazioni successive non esistono ancora
+  const observed = liveRequest ? [] : series.values.slice(origin, origin + horizon);
   const finding = result ? evaluateThreshold(result, threshold) : null;
   const chartForecast = q && result ? { timestamps: result.timestamps, median: q.map((r) => r[MEDIAN_INDEX]!), lower: q.map((r) => r[b.lo]!), upper: q.map((r) => r[b.hi]!), probabilities: finding?.probabilities } : null;
-  const history = { timestamps: series.timestamps.slice(origin - HISTORY_SHOWN, origin), values: series.values.slice(origin - HISTORY_SHOWN, origin) };
-  const issuedAt = series.timestamps[origin - 1]!;
+  const liveTarget = liveRequest?.targets[0];
+  const history = liveTarget
+    ? { timestamps: liveTarget.timestamps.slice(-HISTORY_SHOWN), values: liveTarget.values.slice(-HISTORY_SHOWN) }
+    : { timestamps: series.timestamps.slice(origin - HISTORY_SHOWN, origin), values: series.values.slice(origin - HISTORY_SHOWN, origin) };
+  const issuedAt = liveTarget ? liveTarget.timestamps.at(-1)! : series.timestamps[origin - 1]!;
   const isTimestral = MODEL_CHOICES.find((m) => m.id === model)!.timestral;
   const lineage = forecastLineage(dataset, request.targets[0]!, result?.model ?? { id: model, revision: '—', status: 'beta' }, {
     covariates: request.knownCovariates.map((c) => `${c.name} (${c.kind})`),
@@ -174,7 +241,7 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
   // badge: il nome Timestral compare solo per un risultato prodotto davvero dal modello
   const modelPlain = result?.model.kind === 'timestral' ? result.model.name : isTimestral ? 'modello avanzato (Beta)' : 'previsione di base';
   const constraint = result?.model.kind === 'timestral' ? (result.constraints?.[0] ?? null) : null;
-  const unavailableText = connected && forecastServiceUrl() ? ADVANCED_DOWN : ADVANCED_UNAVAILABLE;
+  const unavailableText = run.status === 'unavailable' && run.message === HISTORY_SHORT_MARK ? HISTORY_TOO_SHORT : connected && forecastServiceUrl() ? ADVANCED_DOWN : ADVANCED_UNAVAILABLE;
   const peak = chartForecast ? peakIndex(chartForecast.median, threshold.direction) : -1;
 
   return (
@@ -226,7 +293,7 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
             <dd className="tabular-nums">{Math.round(finding.maxProbability * 100)}% al massimo</dd>
             <dt className="font-semibold text-sand-600">Fonte della previsione</dt>
             <dd>
-              {isTimestral ? 'Modello avanzato (Beta)' : 'Previsione di base'} calcolata sui dati storici Open-Meteo dell’area
+              {isTimestral ? 'Modello avanzato (Beta)' : 'Previsione di base'} calcolata sui dati storici Open-Meteo {liveRequest ? 'salvati per quest’area' : 'dell’area'}
             </dd>
           </dl>
           <p className="rounded bg-petrol-100 p-2 text-sm text-petrol-900">
@@ -290,10 +357,19 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
             </button>
             <details className="mt-2 text-xs" open={technical}>
               <summary className="cursor-pointer font-semibold">Dettagli tecnici</summary>
-              <p className="font-semibold">{FORECAST_TEXT.notConfigured}</p>
-              <p>
-                {run.message !== FORECAST_TEXT.notConfigured && <>{run.message}. </>}Il servizio di inferenza Timestral ({MODEL_CHOICES.find((m) => m.id === model)!.label}) non è raggiungibile da questa installazione: non viene mostrata alcuna previsione Timestral e nessun valore viene sostituito.
-              </p>
+              {run.message === HISTORY_SHORT_MARK ? (
+                <p data-testid="forecast-history-short">
+                  Storico Open-Meteo salvato per quest’area: {live.status === 'short' ? `${live.hours} ore valide su ${live.target}` : 'non disponibile'}. Timestral parte con almeno 72 ore continue (weather_history_status): nessuna
+                  richiesta inviata al servizio e nessun valore sostituito.
+                </p>
+              ) : (
+                <>
+                  <p className="font-semibold">{FORECAST_TEXT.notConfigured}</p>
+                  <p>
+                    {run.message !== FORECAST_TEXT.notConfigured && <>{run.message}. </>}Il servizio di inferenza Timestral ({MODEL_CHOICES.find((m) => m.id === model)!.label}) non è raggiungibile da questa installazione: non viene mostrata alcuna previsione Timestral e nessun valore viene sostituito.
+                  </p>
+                </>
+              )}
             </details>
           </Alert>
         )}

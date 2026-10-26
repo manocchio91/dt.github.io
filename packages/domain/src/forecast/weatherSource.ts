@@ -125,3 +125,64 @@ export function buildTimestralRequestFromWeather(args: {
     },
   };
 }
+
+/** Ore minime di storico continuo perché il modello avanzato possa partire (come il proxy). */
+export const MIN_HISTORY_HOURS = 72;
+
+export interface HistoryContext {
+  /** ore consecutive, ordinate, in UTC */
+  timestamps: string[];
+  /** una riga per variabile; null = ora senza valore (mai riempita) */
+  context: (number | null)[][];
+  units: string[];
+  /** ore senza valore per variabile */
+  missing: number[];
+  provenance: { source: 'open_meteo'; from: string; to: string; hours: number };
+}
+
+/**
+ * Contesto multivariato per Timestral dallo storico Open-Meteo salvato su Supabase
+ * (weather_observations): ore ordinate e consecutive fino all'ultima ora con TUTTE le variabili,
+ * valori finiti, una sola unità per variabile, lacune lasciate vuote (nessuna interpolazione).
+ * Errore se lo storico continuo è sotto il minimo: il modello avanzato non parte.
+ */
+export function buildHistoryContext(rows: ObservationRow[], variables: string[], opts: { maxHours?: number; before?: string; minHours?: number } = {}): HistoryContext {
+  const errors: string[] = [];
+  const byVar = new Map<string, Map<number, number>>();
+  const units: string[] = [];
+  for (const v of variables) {
+    const own = rows.filter((r) => r.variable === v && r.source === 'open_meteo' && (!opts.before || Date.parse(r.observed_at) < Date.parse(opts.before)));
+    const u = [...new Set(own.map((r) => r.unit))];
+    if (own.length === 0) errors.push(`${v}: nessuno storico registrato`);
+    else if (u.length > 1) errors.push(`${v}: unità non coerenti (${u.join(', ')})`);
+    units.push(u[0] ?? '');
+    const m = new Map<number, number>();
+    for (const r of own) {
+      const t = Date.parse(r.observed_at);
+      if (!Number.isFinite(t) || !Number.isFinite(r.value)) continue;
+      m.set(Math.floor(t / 3_600_000) * 3_600_000, r.value);
+    }
+    byVar.set(v, m);
+  }
+  if (errors.length) throw new ForecastInputError(errors);
+  // ultima ora con tutte le variabili presenti
+  const common = [...byVar.get(variables[0]!)!.keys()].filter((t) => variables.every((v) => byVar.get(v)!.has(t))).sort((a, b) => a - b);
+  if (common.length === 0) throw new ForecastInputError(['Nessuna ora con tutte le variabili richieste.']);
+  const last = common.at(-1)!;
+  const first = Math.min(...variables.map((v) => Math.min(...byVar.get(v)!.keys())));
+  const n = Math.min(Math.floor((last - first) / 3_600_000) + 1, opts.maxHours ?? 24 * 28);
+  const timestamps = Array.from({ length: n }, (_, i) => new Date(last - (n - 1 - i) * 3_600_000).toISOString());
+  const context = variables.map((v) => timestamps.map((t) => byVar.get(v)!.get(Date.parse(t)) ?? null));
+  // ore continue che terminano all'ultima ora: tutte le variabili presenti
+  let continuous = 0;
+  for (let i = n - 1; i >= 0 && context.every((row) => row[i] !== null); i--) continuous++;
+  const min = opts.minHours ?? MIN_HISTORY_HOURS;
+  if (continuous < min) throw new ForecastInputError([`Storico continuo di ${continuous} ore: servono almeno ${min} ore per il modello avanzato.`]);
+  return {
+    timestamps,
+    context,
+    units,
+    missing: context.map((row) => row.filter((x) => x === null).length),
+    provenance: { source: 'open_meteo', from: timestamps[0]!, to: timestamps.at(-1)!, hours: n },
+  };
+}
