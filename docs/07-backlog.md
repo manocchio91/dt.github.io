@@ -118,8 +118,11 @@ P0 = Milestone 0 (integrità) · P1 = Milestone 1 (MVP pilota) · P2 = Milestone
 | B-171 | Progetto di un’altra organizzazione aperto da link diretto: il messaggio dice “Progetto non trovato in questo browser” anche quando si lavora sull’archivio condiviso (testo da adattare, nessun dato esposto) | F26, F29 |
 | B-172 | Valutare trasformazione limitata dell’umidità relativa prima della previsione, per esempio logit/sigmoide, e confrontarla con il vincolo fisico successivo alla previsione (`physical_clipping_v1`), con uno storico più lungo e tramite backtest | F31 |
 | B-173 | Timestral sottostima l’incertezza su alcune serie (copertura 80% sotto il nominale nel backtest; 0,25–0,33 su temperatura e suolo nella verifica di 24 h): calibrare gli intervalli o segnalarlo prima dell’uso decisionale | F31 |
-| B-174 | Storico per Timestral dalla sola Edge Function: oggi ~24 h salvate (past_days=1), sotto il minimo di 72 h; accumulare lo storico del job o ampliare past_days, con politica di conservazione (B-166) | F04, F31 |
+| B-174 | Storico per Timestral dalla sola Edge Function: oggi ~24 h salvate (past_days=1), sotto il minimo di 72 h; accumulare lo storico del job o ampliare past_days, con politica di conservazione (B-166) — **fatto il 26/10/2026**: recupero iniziale di 7 giorni alla creazione della località (past_days=8) e storico incrementale (migrazioni 0012–0013); Timestral legge lo storico salvato su Supabase (`docs/reports/open-meteo-storico-7-giorni-2026-10-26.md`, `docs/reports/timestral-runtime-2026-10-26.md`) | F04, F31 |
 | B-175 | Servizio Timestral ospitato (immagine 1,42 GB, 2 GB di RAM consigliati) raggiungibile solo dal proxy, con segreti e monitoraggio; poi `VITE_FORECAST_URL` sul sito pubblico | F31 |
+| B-176 | Volume di `audit_logs` per lo storico meteo: ogni ora e variabile registrata produce una riga di audit (circa 20 righe all'ora per località agricola); valutare un audit per acquisizione invece che per riga | F21, F04 |
+| B-177 | Test Python del modello reale nell'immagine di test: richiede `HF_HOME=/models` oltre al volume della cache (l'immagine di esercizio lo imposta già); documentarlo o impostarlo nell'immagine di test | F31 |
+| B-178 | Probabilità di precipitazione per le ore passate: oggi disponibile da Open-Meteo, ma non garantita; se assente resta dichiarata come non disponibile, mai stimata | F04 |
 
 ## P2 — Milestone 2
 

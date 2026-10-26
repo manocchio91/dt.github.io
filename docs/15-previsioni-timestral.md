@@ -197,3 +197,42 @@ configurato ma spento: “Il modello avanzato non è disponibile. Puoi continuar
 
 **Solo in locale:** container, proxy (eseguito come modulo nel test), collegamento. **Pronto per il
 cloud:** immagine, Edge Function `forecast-proxy` (serve un servizio Timestral ospitato, B-175).
+
+## 14. Timestral sullo storico Open-Meteo salvato su Supabase (26/10/2026)
+
+**Regola.** Timestral legge lo storico solo da Supabase (`weather_observations`, fonte `open_meteo`,
+riempito dalla Edge Function `open-meteo-ingest` con il recupero iniziale di 7 giorni e il job delle
+3 ore). Nessun secondo storico viene scaricato da Open-Meteo per il modello. Parte solo se
+`weather_history_status` dichiara lo storico sufficiente (almeno 72 ore valide continue); altrimenti:
+“Storico non ancora sufficiente per il modello avanzato. Puoi continuare con la previsione di base.”
+
+**Contesto.** `buildHistoryContext` (dominio) costruisce il contesto multivariato: ore ordinate e
+consecutive fino all'ultima ora con tutte le variabili, valori finiti, una sola unità per variabile,
+lacune lasciate vuote (nessuna interpolazione), solo ore precedenti all'emissione.
+`buildTimestralRequestFromWeather` (pagina Previsioni) usa lo storico della variabile e la previsione
+Open-Meteo registrata come covariata nota in anticipo. Hash dell'input, revisione del modello,
+provenienza (località, periodo, fonte, ore valide), quantili e istanti sono registrati dal proxy.
+
+**Vincolo dell'umidità.** Invariato: `physical_clipping_v1` tra 0% e 100% nel servizio, controllo
+nel proxy, metadati (applicato, valori corretti, massimo grezzo) nella provenienza; nota semplice
+solo quando applicato. La trasformazione logit/sigmoide resta in B-172.
+
+**Esecuzione reale (vecchio PC, container locale).** Immagine `mdt-forecasting:local` riusata
+senza ricostruzione (il merge non tocca `services/forecasting`), volume `mdt-hf` con
+`mistralai/Timestral-5M` @ `bdd20cfc15a3fea0e4cb5ccef37f8d3ca7aa335f` (20 MB, nessun nuovo
+download, `HF_HUB_OFFLINE=1`). Container su 127.0.0.1:8080, utente `app` (uid 10001), filesystem in
+sola lettura, `--cpus 2`, `--memory 2g`, `--cap-drop ALL`, `no-new-privileges`; nell'immagine né
+pesi né segreti. Report: `docs/reports/timestral-runtime-2026-10-26.md` (19/19 più il ripiego con
+container spento). Test Python: 43 superati più il test del modello reale offline dalla cache.
+
+**Cosa funziona dove.**
+
+| Componente | Cloud (staging) | Solo sul vecchio PC |
+|---|---|---|
+| Storico Open-Meteo di 7 giorni, job delle 3 ore, stato dello storico | ✔ | — |
+| Pannello meteo con stato dello storico (sito con accesso all'organizzazione) | ✔ | — |
+| Timestral-5M (container) e logica del proxy | — (forecast-proxy non pubblicata) | ✔ |
+| Sito pubblico | invariato: nessuna chiamata a localhost | — |
+
+**Non validato scientificamente.** Una sola origine di 24 ore per contesto; la copertura degli
+intervalli resta da verificare (B-173); i confronti con Open-Meteo sono scostamenti, non accuratezza.
