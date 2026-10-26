@@ -53,6 +53,8 @@ const rpcs = [
   ['weather_begin_fetch', { p_location: uuid, p_request_hash: 'a'.repeat(64), p_trigger: 'manuale', p_model: 'best_match' }],
   ['weather_complete_fetch', { p_run: uuid, p_meta: {}, p_points: [] }],
   ['weather_active_locations', {}],
+  ['weather_history_status', { p_location: uuid }],
+  ['delete_organization', { p_org: uuid, p_confirm_name: 'anon' }],
   ['log_media_access', { p_media: uuid }],
   ['media_authorize_delete', { p_media: uuid }],
 ];
