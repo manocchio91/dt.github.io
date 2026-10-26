@@ -216,3 +216,55 @@ browser; il resto del percorso è stato eseguito con clic reali.
 fermo sui dati* finché un utente autenticato non crea un progetto con un punto di acquisizione.
 Un’esecuzione con lo stesso comando del job risponde HTTP 200 con
 `{"results":[],"completate":0,"errori":0}`: l’assenza di località è un’esecuzione valida, non un errore.
+
+## 14. Storico di 7 giorni (26/10/2026, migrazioni 0012–0013)
+
+**Origine.** La migrazione `20261026000012_weather_history_backfill` e la versione 4 della Edge
+Function erano state applicate sullo staging da un PC poi bloccato, senza arrivare su GitHub. Sono
+state recuperate senza modifiche (istruzioni SQL registrate in `supabase_migrations.schema_migrations`
+e sorgente scaricata dalla funzione pubblicata) nel commit `recover: allinea repository al backfill
+meteo presente su staging`.
+
+**Comportamento.**
+1. Alla creazione di una località attiva il trigger `weather_initial_fetch` chiede subito alla Edge
+   Function il recupero iniziale (pg_net, URL e segreto dal Vault, dopo il commit; al massimo 5
+   richieste immediate ogni 10 minuti per organizzazione). Se pg_net o il Vault mancano la località
+   resta salvata e la acquisisce il job delle 3 ore.
+2. Prima acquisizione: `past_days=8` (Open-Meteo parte dalla mezzanotte locale con lo scostamento
+   attuale: con 7 giorni, subito dopo mezzanotte o dopo il cambio dell'ora legale, le ore passate
+   sarebbero 167). Sulla località reale di prova: 207 ore passate per variabile.
+3. Acquisizioni successive (job ogni 3 ore o aggiornamento manuale): `past_days` calcolato dalla
+   prima ora mancante (`firstMissingHour` su `weather_history_status`), di norma 1. Le ore già
+   presenti non si duplicano (`unique (location_id, observed_at, variable, source)`, `on conflict do
+   nothing`); le previsioni già emesse non si sovrascrivono. Stessa ora già acquisita: nessuna
+   chiamata a Open-Meteo.
+4. Le ore passate vanno in `weather_observations` (fonte `open_meteo`, qualità `modellato`), quelle
+   dall'emissione in poi in `weather_forecast_points`. Istanti in UTC (`timeformat=unixtime`): il
+   cambio dell'ora legale non produce doppioni né salti.
+5. Un errore chiude solo quell'acquisizione: lo storico valido resta.
+
+**Provenienza (0013).** `weather_observations.fetch_run_id` collega ogni ora storica
+all'acquisizione che l'ha fornita: ora di acquisizione, emissione, cella, quota e modello
+(`weather_fetch_runs`), località, progetto e organizzazione. Ammessa solo per la fonte `open_meteo`.
+
+**Completezza (`weather_history_status`, calcolata dal server).** Ora valida = ora passata con tutte
+le variabili obbligatorie (`temperature_2m`, `relative_humidity_2m`, `precipitation`,
+`wind_speed_10m`, `shortwave_radiation`), non il semplice numero di righe. Restituisce prima e ultima
+ora, ore valide nella finestra di 168 ore, ore continue, ore future, ore per variabile, variabili
+obbligatorie mancanti, lacune e stato:
+
+| Livello | Regola | Frase nella modalità guidata |
+|---|---|---|
+| disponibile | 168 ore valide nella finestra di 7 giorni | “Storico disponibile: 7 giorni. Il modello avanzato può essere utilizzato.” |
+| consolidamento | almeno 72 ore valide continue | “Stiamo raccogliendo lo storico necessario. Sono disponibili N delle 168 ore previste. Storico ancora in consolidamento…” |
+| insufficiente | meno di 72 | “… Storico non ancora sufficiente per il modello avanzato.” |
+
+Le lacune sono elencate (“Mancano N ore nello storico: non vengono stimate né riempite.”), mai
+interpolate. Se la prima acquisizione non riesce: “Il progetto è stato salvato, ma i dati meteo non
+sono ancora disponibili. Riprova più tardi.” con “Riprova aggiornamento” per chi modifica. Ore
+valide, continuità, lacune e ore per variabile solo in “Dettagli della fonte”.
+
+**Test.** `supabase/tests/weatherBackfill.test.ts` (migrazioni da zero, Open-Meteo simulato:
+prima acquisizione, incrementale, idempotenza, duplicati, lacune, ora legale, risposte incomplete,
+errori temporanei, provenienza, permessi), `apps/web/src/test/weatherPanel.test.tsx`,
+`e2e/weatherHistory.spec.ts`, verifica reale `scripts/supabase-real/weather-history-runtime.mjs`.
