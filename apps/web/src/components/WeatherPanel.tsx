@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { isStale, OM_ATTRIBUTION, validateAoi, type ProjectBundle } from '@mdt/domain';
 import { useAuth } from '../state/auth';
 import { useStore } from '../state/store';
@@ -132,7 +133,7 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
     return (
       <section aria-labelledby="meteo-h" className="card space-y-2" data-testid="weather-panel">
         <h2 id="meteo-h" className="h-section">
-          Dati meteorologici
+          SITUAZIONE ATTUALE
         </h2>
         <Alert tone="info" title={NOT_CONNECTED.title}>
           <p>{NOT_CONNECTED.text}</p>
@@ -203,7 +204,7 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <h2 id="meteo-h" className="h-section">
-            Dati meteorologici
+            SITUAZIONE ATTUALE
           </h2>
           <SourceBadge kind="OPEN_METEO" />
         </div>
@@ -218,6 +219,8 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
           </div>
         )}
       </div>
+
+      <p className="text-sm text-sand-600">Dati meteorologici aggiornati relativi all’area.</p>
 
       <p className="rounded border-l-4 border-meteo-700 bg-meteo-50 p-2 text-sm font-semibold text-meteo-900" role="note">
         {MODELLED_NOTICE}
@@ -258,6 +261,7 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
           preparing={preparing && polls < PREPARATION_POLLS}
           retry={canEdit && online && !coolingDown && (!run || snap.history?.stato === 'non_riuscito') && !(preparing && polls < PREPARATION_POLLS) ? refresh : null}
           busy={busy}
+          forecastTo={`/progetti/${bundle.project.id}/previsioni`}
         />
       )}
 
@@ -409,7 +413,10 @@ export function WeatherPanel({ bundle, now = () => new Date() }: { bundle: Proje
         </div>
       )}
 
-      <Legend />
+      <details className="text-sm" open={technical}>
+        <summary className="cursor-pointer font-semibold text-petrol-700">Fonti e metodo</summary>
+        <div className="mt-2"><Legend /></div>
+      </details>
     </section>
   );
 }
@@ -426,15 +433,11 @@ function SummaryCard({ summary, updatedAt }: { summary: WeatherSummary; updatedA
         <span className="font-semibold">{summary.headline}</span>
       </p>
       <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[12rem_1fr]">
-        <dt className="font-semibold text-sand-600">{WEATHER_LABEL[summary.variable]} ora</dt>
-        <dd className="tabular-nums">{summary.current === null ? 'n.d.' : formatNumber(summary.current, summary.unit)}</dd>
-        <dt className="font-semibold text-sand-600">Soglia</dt>
-        <dd>
-          {summary.threshold.direction} {formatNumber(summary.threshold.value, summary.unit)} — dimostrativa, da confermare ({summary.threshold.who})
-        </dd>
+        <dt className="font-semibold text-sand-600">Valore principale</dt>
+        <dd className="tabular-nums">{WEATHER_LABEL[summary.variable]}: {summary.current === null ? 'n.d.' : formatNumber(summary.current, summary.unit)}</dd>
         {summary.window && (
           <>
-            <dt className="font-semibold text-sand-600">Quando</dt>
+            <dt className="font-semibold text-sand-600">Andamento delle prossime ore</dt>
             <dd>
               {fmtHour(summary.window.from)} → {fmtHour(summary.window.to)}
             </dd>
@@ -465,7 +468,7 @@ function Legend() {
 }
 
 /** Modalità guidata: lo stato dello storico in una frase, senza termini tecnici. */
-function HistoryNote({ history: h, hasRun, preparing, retry, busy }: { history: HistoryStatus | null; hasRun: boolean; preparing: boolean; retry: (() => void) | null; busy: boolean }) {
+function HistoryNote({ history: h, hasRun, preparing, retry, busy, forecastTo }: { history: HistoryStatus | null; hasRun: boolean; preparing: boolean; retry: (() => void) | null; busy: boolean; forecastTo: string }) {
   let text: string;
   let tone = 'bg-sand-100 text-sand-900';
   if (h?.stato === 'non_riuscito' || (!hasRun && !preparing)) {
@@ -477,7 +480,7 @@ function HistoryNote({ history: h, hasRun, preparing, retry, busy }: { history: 
     // server senza lo stato dello storico: nessuna frase invece di una supposizione
     return null;
   } else if (h.livello === 'disponibile') {
-    text = 'Storico disponibile: 7 giorni. Il modello avanzato può essere utilizzato.';
+    text = 'Storico disponibile: 7 giorni. Previsione avanzata disponibile.';
   } else {
     text = `Stiamo raccogliendo lo storico necessario. Sono disponibili ${h.ore_finestra} delle ${h.ore_obiettivo} ore previste.`;
     text += h.livello === 'consolidamento' ? ' Storico ancora in consolidamento: il modello avanzato si può usare con cautela.' : ' Storico non ancora sufficiente per il modello avanzato.';
@@ -486,6 +489,9 @@ function HistoryNote({ history: h, hasRun, preparing, retry, busy }: { history: 
   return (
     <div className={`space-y-1 rounded p-2 text-sm ${tone}`} data-testid="weather-history" role="status">
       <p>{text}</p>
+      {h?.livello === 'disponibile' && hasRun && (
+        <Link className="inline-block font-semibold text-petrol-700 underline" to={forecastTo}>Apri le previsioni</Link>
+      )}
       {h && hasRun && missing > 0 && <p>Mancano {missing} ore nello storico: non vengono stimate né riempite.</p>}
       {retry && (
         <button type="button" className="btn-secondary" onClick={retry} disabled={busy}>

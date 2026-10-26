@@ -197,7 +197,7 @@ export function Field({ label, hint, children, htmlFor }: { label: ReactNode; hi
 export function DemoRibbon() {
   return (
     <p className="rounded-md bg-ochre-100 px-3 py-1.5 text-xs font-bold text-ochre-800">
-      DEMO — stime illustrative non validate. Non utilizzabili come atto tecnico.
+      SCENARI DIMOSTRATIVI — gli effetti degli interventi sono simulati.
     </p>
   );
 }

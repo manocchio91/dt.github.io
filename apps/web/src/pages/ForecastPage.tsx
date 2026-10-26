@@ -44,7 +44,7 @@ const HISTORY_SHOWN = 72;
 /** Nella modalità guidata: due scelte con parole semplici; nomi e versioni dei modelli restano nei dettagli tecnici. */
 const GUIDED_MODEL_LABEL: Partial<Record<ModelChoice, string>> = {
   'baseline-persistenza-stagionale': 'Previsione di base',
-  'mistralai/Timestral-5M': 'Modello avanzato (Beta)',
+  'mistralai/Timestral-5M': 'Timestral-5M',
 };
 
 export const ADVANCED_UNAVAILABLE = { title: 'Il modello avanzato non è disponibile.', text: 'Puoi continuare con la previsione di base.' };
@@ -111,16 +111,17 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
 
   const request = useMemo(() => requestAtOrigin(cfg, origin), [cfg, origin]);
   const [run, setRun] = useState<RunState>({ status: 'idle' });
+  const [timestralRequested, setTimestralRequested] = useState(0);
   const [baselines, setBaselines] = useState<ForecastResult[]>([]);
   const token = session?.access_token ?? null;
   const { kind } = useStore();
   // il modello avanzato passa dal proxy autenticato: serve un progetto dell'organizzazione (archivio condiviso)
   const connected = kind === 'supabase' && !!token;
-  const isTimestralChoice = MODEL_CHOICES.find((m) => m.id === model)!.timestral;
+  const isTimestralChoice = MODEL_CHOICES.find((m) => m.id === model)?.timestral ?? false;
 
   // con l'archivio dell'organizzazione il modello avanzato legge lo storico Open-Meteo salvato su Supabase
   // (mai un secondo storico scaricato da Open-Meteo) e parte solo se lo storico è sufficiente
-  const useHistory = connected && !!client && isTimestralChoice;
+  const useHistory = connected && !!client && !!forecastServiceUrl();
   const [live, setLive] = useState<LiveInput>({ status: 'off' });
   useEffect(() => {
     if (!useHistory || !client) {
@@ -148,8 +149,12 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
 
   useEffect(() => {
     let alive = true;
+    if (isTimestralChoice && timestralRequested === 0) {
+      setRun({ status: 'idle' });
+      return;
+    }
     setRun({ status: 'loading' });
-    if (useHistory) {
+    if (isTimestralChoice && useHistory) {
       if (live.status === 'loading' || live.status === 'off') return;
       if (live.status === 'short') {
         setRun({ status: 'unavailable', message: HISTORY_SHORT_MARK });
@@ -186,7 +191,7 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, request, token, connected, live]);
+  }, [model, request, token, connected, live, isTimestralChoice, timestralRequested, useHistory]);
 
   const result = run.status === 'ok' ? run.result : null;
   const b = FORECAST_BANDS[band];
@@ -200,7 +205,7 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
     ? { timestamps: liveTarget.timestamps.slice(-HISTORY_SHOWN), values: liveTarget.values.slice(-HISTORY_SHOWN) }
     : { timestamps: series.timestamps.slice(origin - HISTORY_SHOWN, origin), values: series.values.slice(origin - HISTORY_SHOWN, origin) };
   const issuedAt = liveTarget ? liveTarget.timestamps.at(-1)! : series.timestamps[origin - 1]!;
-  const isTimestral = MODEL_CHOICES.find((m) => m.id === model)!.timestral;
+  const isTimestral = MODEL_CHOICES.find((m) => m.id === model)?.timestral ?? false;
   const lineage = forecastLineage(dataset, request.targets[0]!, result?.model ?? { id: model, revision: '—', status: 'beta' }, {
     covariates: request.knownCovariates.map((c) => `${c.name} (${c.kind})`),
     horizon,
@@ -235,8 +240,10 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
     return pairs.length ? pairs.reduce((s, [m, o]) => s + Math.abs((o as number) - m), 0) / pairs.length : null;
   };
 
-  const guidedModels = MODEL_CHOICES.filter((m) => GUIDED_MODEL_LABEL[m.id]);
-  const modelOptions = technical ? MODEL_CHOICES.map((m) => ({ id: m.id, label: m.label })) : guidedModels.map((m) => ({ id: m.id, label: GUIDED_MODEL_LABEL[m.id]! }));
+  const advancedAvailable = connected && !!forecastServiceUrl();
+  const visibleModels = MODEL_CHOICES.filter((m) => !m.timestral || advancedAvailable || m.id === model);
+  const guidedModels = visibleModels.filter((m) => GUIDED_MODEL_LABEL[m.id]);
+  const modelOptions = technical ? visibleModels.map((m) => ({ id: m.id, label: m.label })) : guidedModels.map((m) => ({ id: m.id, label: GUIDED_MODEL_LABEL[m.id]! }));
   if (!modelOptions.some((m) => m.id === model)) modelOptions.push({ id: model, label: MODEL_CHOICES.find((m) => m.id === model)!.label });
   // badge: il nome Timestral compare solo per un risultato prodotto davvero dal modello
   const modelPlain = result?.model.kind === 'timestral' ? result.model.name : isTimestral ? 'modello avanzato (Beta)' : 'previsione di base';
@@ -252,7 +259,10 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
           <StatusBadge status="beta" />
         </div>
         <p className="text-sm">
-          Che cosa potrebbe accadere nelle prossime ore {urban ? 'nell’area urbana' : 'nel vigneto'}, con una fascia di possibile variazione. È una <strong>stima da modello</strong>, non una misura: la decisione resta umana.
+          {liveRequest
+            ? `Che cosa potrebbe accadere nelle prossime ${horizon} ore ${urban ? 'nell’area urbana' : 'nel vigneto'}.`
+            : `Caso dimostrativo: ${horizon} ore successive nel periodo storico ${series.timestamps[origin]!.slice(0, 10)}–${series.timestamps[origin + horizon - 1]!.slice(0, 10)}.`}{' '}
+          È una <strong>stima da modello</strong>, non una misura: la decisione resta umana.
         </p>
         <Alert tone="warn" title={urban ? 'Che cosa non dice questa previsione' : 'Avvertenza obbligatoria'}>
           <p>{urban ? FORECAST_TEXT.urban : FORECAST_TEXT.agri}</p>
@@ -261,7 +271,9 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
       <PathGuide
         where={{
           step: 4,
-          what: urban ? 'quanto potrebbe salire la temperatura nelle prossime ore e con quale probabilità supera la soglia.' : 'come potrebbero cambiare umidità del suolo e temperatura e con quale probabilità superano la soglia dell’agronomo.',
+          what: liveRequest
+            ? (urban ? 'quanto potrebbe salire la temperatura nelle prossime ore e con quale probabilità supera la soglia.' : 'come potrebbero cambiare umidità del suolo e temperatura e con quale probabilità superano la soglia dell’agronomo.')
+            : 'come si comporta la previsione nel caso dimostrativo storico selezionato.',
           why: 'sapere in anticipo quando potrebbe esserci una criticità aiuta a verificarla in tempo.',
           next: urban ? { label: 'confronta gli scenari e registra la decisione', to: `/progetti/${bundle.project.id}/confronto` } : { label: 'torna alle zone da controllare nel Decision Lab', to: `/progetti/${bundle.project.id}/agricolo` },
         }}
@@ -313,7 +325,7 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block text-sm font-semibold">
             Grandezza
-            <select className="input mt-1" value={variable} onChange={(e) => setVariable(e.target.value)}>
+            <select className="input mt-1" value={variable} onChange={(e) => { setVariable(e.target.value); setTimestralRequested(0); }}>
               {variables.map((v) => (
                 <option key={v} value={v}>
                   {VARIABLE_LABEL[v] ?? v}
@@ -323,7 +335,7 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
           </label>
           <label className="block text-sm font-semibold">
             Orizzonte
-            <select className="input mt-1" value={horizon} onChange={(e) => setHorizon(Number(e.target.value))}>
+            <select className="input mt-1" value={horizon} onChange={(e) => { setHorizon(Number(e.target.value)); setTimestralRequested(0); }}>
               {horizons.map((h) => (
                 <option key={h} value={h}>
                   {h} ore
@@ -333,7 +345,7 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
           </label>
           <label className="block text-sm font-semibold">
             Modello
-            <select className="input mt-1" value={model} onChange={(e) => setModel(e.target.value as ModelChoice)}>
+            <select className="input mt-1" value={model} onChange={(e) => { setModel(e.target.value as ModelChoice); setTimestralRequested(0); }}>
               {modelOptions.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.label}
@@ -342,13 +354,20 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
             </select>
           </label>
         </div>
+        {advancedAvailable && <p className="text-sm text-petrol-800">Previsione avanzata disponibile. Timestral è un’elaborazione previsionale sperimentale; Open-Meteo fornisce i dati meteorologici.</p>}
       </Section>
 
       <Section
         id="previsione"
-        title={`${VARIABLE_LABEL[variable] ?? variable}: prossime ${horizon} ore`}
+        title={liveRequest ? `${VARIABLE_LABEL[variable] ?? variable}: prossime ${horizon} ore` : `${VARIABLE_LABEL[variable] ?? variable}: ${horizon} ore successive nel caso dimostrativo`}
         aside={result ? <SourceBadge kind={result.dataClass === 'SIMULATO' ? 'SIMULATO' : 'STIMATO_DA_MODELLO'} detail={technical ? (result.model.kind === 'timestral' ? `${result.model.name} [${result.model.revision.slice(0, 7)}]` : result.model.name) : modelPlain} testId="forecast-badge" /> : null}
       >
+        {isTimestral && run.status === 'idle' && (
+          <div className="rounded-lg border border-sand-200 p-3 text-sm">
+            <p>Timestral-5M è un’elaborazione previsionale sperimentale e non una previsione scientificamente validata.</p>
+            <button type="button" className="btn-secondary mt-2" onClick={() => setTimestralRequested((n) => n + 1)}>Avvia Timestral-5M</button>
+          </div>
+        )}
         {run.status === 'unavailable' && (
           <Alert tone="warn" title={unavailableText.title}>
             <p>{unavailableText.text}</p>
@@ -419,7 +438,7 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
                 <caption className="sr-only">Valori previsti ora per ora</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Ora (Europe/Rome)</th>
+                    <th scope="col">Data e orario (Europe/Rome)</th>
                     <th scope="col">{technical ? 'Mediana' : 'Valore centrale'}</th>
                     <th scope="col">{technical ? b.label : 'Fascia di variazione'}</th>
                     <th scope="col">Prob. soglia</th>
@@ -531,7 +550,7 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
           </h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <label className="block text-sm font-semibold">
-              Emissione (“ora”)
+              Inizio della simulazione
               <select className="input mt-1" value={origin} onChange={(e) => setOriginIdx(Number(e.target.value))}>
                 {origins.map((o) => (
                   <option key={o} value={o}>
@@ -630,7 +649,7 @@ function ForecastView({ bundle, update }: { bundle: ProjectBundle; update: Retur
             <dd>{isTimestral ? (forecastServiceUrl() ? 'Beta da validare — servizio configurato' : `Beta da validare — ${FORECAST_TEXT.notConfigured}`) : 'Baseline statistica di riferimento'}</dd>
             <dt className="font-semibold text-sand-600">Licenza</dt>
             <dd>{result?.model.license ?? (isTimestral ? 'Codice: Apache-2.0 · Pesi: Modified MIT (Hugging Face)' : 'codice del progetto')}</dd>
-            <dt className="font-semibold text-sand-600">Emissione (“ora”)</dt>
+            <dt className="font-semibold text-sand-600">Inizio della simulazione</dt>
             <dd>{fmtDay(issuedAt)} (ultimo dato dello storico)</dd>
             <dt className="font-semibold text-sand-600">Dati in ingresso</dt>
             <dd>

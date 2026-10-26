@@ -9,37 +9,28 @@ import {
   deriveBaselineVersion,
   demoUrbanBaselineValues,
   fetchUrbanBaselineWeather,
-  findValue,
   formatArea,
   INTERVENTION_GEOMETRY,
   INTERVENTION_LABEL,
   interventionQuantity,
-  missingValue,
   runScenario,
   suggestedCellSize,
   userValue,
   validateAoi,
   verifyBaselineIntegrity,
   type ConnectorError,
-  type DataValue,
   type Horizon,
   type InterventionType,
   type Scenario,
 } from '@mdt/domain';
 import { DataBadge, formatNumber } from '../components/DataBadge';
 import { coolingColor, CoolingLegend, MapView, type MapPoint, type MapPolygon } from '../components/MapView';
-import { Alert, DecisionOverview, DemoRibbon, Field, Section, Term } from '../components/ui';
+import { Alert, DemoRibbon, Field, Section, Term } from '../components/ui';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { CanEdit, usePermissions } from '../state/permissions';
 import { useWorkMode } from '../state/preferences';
 import { GuideBanner, parseCoordinates } from '../components/guide';
 import { buildIntervention, nextScenarioLabel, PARAM_DEFAULTS, PARAM_LABEL, PARAM_OPTIONS, refreshCombined, type ParamValue } from './urbanForms';
-
-const INDICATORS: { key: string; title: string; termKey?: string; note: string }[] = [
-  { key: 't_air_ref_hour', title: 'Temperatura dell’aria (2 m)', note: 'Quota 2 m, all’ora di riferimento. Non coincide con la temperatura delle superfici.' },
-  { key: 't_surface_ref_hour', title: 'Temperatura superficiale', note: 'Temperatura delle pavimentazioni al sole: può superare di molto quella dell’aria.' },
-  { key: 'comfort_index', title: 'Comfort termico (UTCI/WBGT)', termKey: 'utci', note: 'Calcolabile solo con input adeguati (temperatura media radiante, vento a quota pedone).' },
-];
 
 export default function UrbanLabPage() {
   const { bundle, ready, update } = useProject();
@@ -54,7 +45,7 @@ export default function UrbanLabPage() {
   const [iParams, setIParams] = useState<Record<string, ParamValue>>(PARAM_DEFAULTS.albero);
   const [placing, setPlacing] = useState(false);
   const [surfaceInput, setSurfaceInput] = useState('');
-  const [showCells, setShowCells] = useState(true);
+  const [showCells, setShowCells] = useState(false);
   const [combineSel, setCombineSel] = useState<string[]>([]);
   const [iCoords, setICoords] = useState('');
   const [coordError, setCoordError] = useState<string | null>(null);
@@ -216,17 +207,12 @@ export default function UrbanLabPage() {
       );
   }
 
-  const baselineValue = (key: string): DataValue =>
-    key === 'comfort_index'
-      ? missingValue('comfort_index', 'Indice di comfort termico (UTCI/WBGT)', '°C', 'Non calcolato: servono temperatura media radiante, vento a quota pedone e radiazione locale validata.')
-      : (baseline && findValue(baseline.values, key)) ?? missingValue(key, key, '°C', 'Non presente nella baseline.');
-
   const blocking = run?.checks.filter((c) => c.severity === 'errore') ?? [];
   const warnings = run?.checks.filter((c) => c.severity === 'avviso') ?? [];
-  const urbanState = blocking.length > 0 ? 'Critico' : !baseline || !run || warnings.length > 0 ? 'Attenzione' : 'Regolare';
   const air = baseline?.values.find((v) => v.key === 't_air_ref_hour');
-  const urbanParameter = air?.value == null ? 'Temperatura dell’aria non ancora disponibile' : `${air.label}: ${formatNumber(air.value, air.unit)}`;
-  const urbanUpdated = run?.computedAt ?? baseline?.lockedAt;
+  const mainOutputs = run?.outputs.filter((o) => o.dataClass !== 'DATO_MANCANTE' && ['delta_t_air', 'area_benefited', 't_air_scenario'].includes(o.key)).slice(0, 3) ?? [];
+  const missingOutputs = run?.outputs.filter((o) => o.dataClass === 'DATO_MANCANTE') ?? [];
+  const airReduction = run?.outputs.find((o) => o.key === 'delta_t_air' && o.value !== null);
 
   return (
     <div className="space-y-4">
@@ -246,34 +232,24 @@ export default function UrbanLabPage() {
       </div>
       {isDemo && <DemoRibbon />}
       <GuideBanner
-        readOnlyHint="Sola lettura: consulta baseline, scenari e risultati; il confronto è nella pagina “Confronto e decisione”."
+        readOnlyHint="Sola lettura: consulta periodo storico, scenari e risultati; il confronto è nella pagina “Confronto e decisione”."
         whenDone={{ label: 'confronta gli scenari e registra la decisione', to: `/progetti/${bundle.project.id}/confronto` }}
-        where={{ step: 3, what: 'il calore dell’area oggi (baseline), i dati meteo e gli scenari di intervento.', why: 'senza un punto di partenza bloccato non si può dire quanto un intervento migliori davvero.' }}
+        where={{ step: 3, what: 'la situazione attuale, il periodo storico scelto e gli scenari di intervento.', why: 'separare dati aggiornati, riferimento storico e simulazione rende il confronto verificabile.' }}
         steps={[
           { done: !!(area && aoiOk), label: 'definisci l’area', anchor: 'u1' },
-          { done: !!baseline, label: 'crea la baseline (periodo e ora)', anchor: 'u2' },
+          { done: !!baseline, label: 'scegli il periodo storico di riferimento', anchor: 'u2' },
           { done: scenarios.length > 0, label: 'aggiungi uno scenario', anchor: 'u5' },
           { done: scenarios.some((s) => s.interventions.length > 0), label: 'posiziona un intervento', anchor: 'u6' },
           { done: bundle.runs.some((r) => scenarios.some((s) => s.id === r.scenarioId) && r.outputs.length > 0), label: 'calcola lo scenario', anchor: 'u7' },
           { done: scenarios.length >= 2, label: 'crea un secondo scenario da confrontare', anchor: 'u5' },
         ]}
       />
-      <DecisionOverview
-        subject={area?.name ?? bundle.project.name}
-        state={urbanState}
-        parameter={urbanParameter}
-        outlook={run ? (blocking.length ? 'Il calcolo segnala dati da correggere prima del confronto.' : warnings.length ? 'Lo scenario richiede una verifica prima del confronto.' : 'Lo scenario è pronto per il confronto.') : 'Calcola almeno uno scenario per vedere l’andamento previsto.'}
-        source={baseline?.isDemo ? 'SIMULATO' : baseline ? 'DATO OPEN-METEO' : 'Fonte non ancora disponibile'}
-        updated={urbanUpdated ? new Date(urbanUpdated).toLocaleString('it-IT', { timeZone: 'Europe/Rome' }) : 'Non ancora disponibile'}
-        nextStep={run ? 'Confronta gli scenari e motiva la decisione.' : 'Completa la baseline e calcola uno scenario.'}
-      />
       <WeatherPanel bundle={bundle} />
 
       <Section id="u1" step={1} title="Area reale">
         {area && aoiOk ? (
           <p className="text-sm">
-            <strong>{area.name}</strong> · {formatArea(area.areaM2)} · {area.crs}
-            {grid && ` · griglia di ${grid.cells.length} celle da ${grid.cellSizeM} m`}{' '}
+            <strong>{area.name}</strong> · {formatArea(area.areaM2)}{' '}
             <Link className="font-semibold text-petrol-700 underline" to={`/progetti/${bundle.project.id}/area`}>
               dettagli
             </Link>
@@ -287,11 +263,12 @@ export default function UrbanLabPage() {
 
       {area && aoiOk && (
         <>
-          <Section id="u2" step={2} title="Periodo e ora di riferimento">
+          <Section id="u2" step={2} title="Quale periodo vuoi usare per confrontare gli interventi?">
+            <p className="text-sm">Scegli, per esempio, un mese estivo particolarmente caldo.</p>
             <CanEdit
               fallback={
                 <p className="text-sm text-sand-600">
-                  {baseline ? `Periodo della baseline corrente: ${baseline.periodStart} → ${baseline.periodEnd}, ore ${String(baseline.referenceHourLocal).padStart(2, '0')}:00.` : 'Nessuna baseline creata.'} Solo chi ha il ruolo “modifica” può creare nuove versioni.
+                  {baseline ? `Riferimento scelto: ${baseline.periodStart} → ${baseline.periodEnd}, ore ${String(baseline.referenceHourLocal).padStart(2, '0')}:00.` : 'Nessun periodo storico scelto.'} Solo chi ha il ruolo “modifica” può creare nuove versioni.
                 </p>
               }
             >
@@ -314,7 +291,7 @@ export default function UrbanLabPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" className="btn-secondary" onClick={fetchBaseline} disabled={fetchState.status === 'loading'}>
-                {fetchState.status === 'loading' ? 'Richiesta in corso…' : baselines.length ? 'Crea nuova versione della baseline da Open-Meteo' : 'Crea baseline da Open-Meteo'}
+                {fetchState.status === 'loading' ? 'Richiesta in corso…' : baselines.length ? 'Salva un nuovo periodo da Open-Meteo' : 'Usa questo periodo da Open-Meteo'}
               </button>
               <span className="text-xs text-sand-600">Stima modellistica riferita alla cella di griglia, non sensore sul posto.</span>
             </div>
@@ -341,7 +318,7 @@ export default function UrbanLabPage() {
           <Section
             id="u3"
             step={3}
-            title="Baseline"
+            title="PERIODO STORICO DI RIFERIMENTO"
             aside={
               baselines.length > 1 && (
                 <label className="flex items-center gap-2 text-sm">
@@ -358,14 +335,19 @@ export default function UrbanLabPage() {
             }
           >
             {!baseline ? (
-              <p className="text-sm">Nessuna baseline. Creala dal passo 2.</p>
+              <p className="text-sm">Nessun periodo storico scelto. Selezionalo dal passo 2.</p>
             ) : (
               <>
-                <p className="text-sm">
-                  <Term k="baseline">Baseline</Term> <strong>v{baseline.version}</strong> · {baseline.periodStart} → {baseline.periodEnd}, ore {String(baseline.referenceHourLocal).padStart(2, '0')}:00 Europe/Rome · {baseline.sourceSummary}
-                  {baseline.isDemo && <span className="ml-2 font-bold text-ochre-800">DEMO</span>}
-                </p>
-                <p className="text-xs text-sand-600">
+                <p className="text-sm">Questo periodo viene utilizzato per confrontare gli scenari. Non rappresenta il meteo di oggi.</p>
+                <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[12rem_1fr]">
+                  <dt className="font-semibold text-sand-600">Periodo selezionato</dt><dd>{baseline.periodStart} → {baseline.periodEnd}</dd>
+                  <dt className="font-semibold text-sand-600">Ora di riferimento</dt><dd>{String(baseline.referenceHourLocal).padStart(2, '0')}:00 Europe/Rome</dd>
+                  <dt className="font-semibold text-sand-600">Fonte</dt><dd>{baseline.isDemo ? 'SIMULATO' : 'DATO OPEN-METEO'}</dd>
+                  <dt className="font-semibold text-sand-600">Valore medio principale</dt><dd>{air?.value == null ? 'Non disponibile' : formatNumber(air.value, air.unit)}</dd>
+                </dl>
+                <details className="mt-3" open={mode === 'tecnica'} data-testid="baseline-technical">
+                  <summary className="cursor-pointer text-sm font-semibold text-petrol-700">Approfondimento tecnico</summary>
+                <p className="mt-2 text-xs text-sand-600">
                   Bloccata il {new Date(baseline.lockedAt).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })} ·{' '}
                   {mode === 'tecnica' && (
                     <>
@@ -410,34 +392,15 @@ export default function UrbanLabPage() {
                   </div>
                 </details>
                 </CanEdit>
+                </details>
               </>
             )}
           </Section>
 
           {baseline && (
-            <Section id="u4" step={4} title="Indicatori, letti separatamente">
-              <div className="grid gap-3 md:grid-cols-3">
-                {INDICATORS.map((ind) => {
-                  const v = baselineValue(ind.key);
-                  return (
-                    <div key={ind.key} className="rounded-lg border border-sand-200 bg-sand-50 p-3">
-                      <h3 className="font-bold">{ind.termKey ? <Term k={ind.termKey}>{ind.title}</Term> : ind.title}</h3>
-                      <div className="mt-2 text-lg">
-                        <DataBadge value={v} />
-                      </div>
-                      <p className="mt-2 text-xs text-sand-600">{v.missingReason ?? ind.note}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </Section>
-          )}
-
-          {baseline && (
-            <Section id="u5" step={5} title="Scenari alternativi">
-              <p className="text-sm">
-                Tutti gli scenari di questa pagina usano la baseline v{baseline.version} e il modello <code>demo-urban-illustrative@0.1.0</code>: il confronto resta equo.
-              </p>
+            <Section id="u5" step={5} title="SIMULAZIONE DEGLI INTERVENTI">
+              <p className="text-sm">Gli effetti di alberi, superfici e nebulizzazione sono stime comparative illustrative. Non costituiscono una previsione validata né un atto tecnico.</p>
+              <p className="text-sm">Tutti gli scenari usano lo stesso periodo storico di riferimento, così il confronto resta coerente.</p>
               <div className="flex flex-wrap gap-2" role="tablist" aria-label="Scenari">
                 {scenarios.map((s) => (
                   <button
@@ -505,6 +468,7 @@ export default function UrbanLabPage() {
               aside={<span className="text-xs text-sand-600">Orizzonte: {scenario.horizon === 'maturita' ? 'chiome a maturità' : 'all’impianto'}</span>}
             >
               <p className="text-sm text-sand-600">{scenario.description}</p>
+              <p className="text-sm font-semibold">Periodo simulato: {baseline.periodStart}–{baseline.periodEnd}, riferimento alle {String(baseline.referenceHourLocal).padStart(2, '0')}:00.</p>
               {scenario.combines.length > 0 && (
                 <Alert tone="info">Scenario combinato: gli interventi derivano dagli scenari sorgente e si aggiornano con essi.</Alert>
               )}
@@ -538,13 +502,12 @@ export default function UrbanLabPage() {
                           {i.label} <span className="font-normal text-sand-600">· {INTERVENTION_LABEL[i.type]}</span>
                         </p>
                         <p>
-                          Quantità dalla geometria: <strong>{formatNumber(q.value, q.unit)}</strong>
+                          <strong>{i.type === 'albero' || i.type === 'nebulizzazione' ? Math.round(q.value) : formatNumber(q.value, q.unit)} {i.type === 'albero' ? 'alberi' : i.type === 'nebulizzazione' ? 'punti di nebulizzazione' : INTERVENTION_LABEL[i.type].toLowerCase()}</strong>
                         </p>
-                        <p className="text-xs text-sand-600">
-                          {Object.entries(i.params)
-                            .map(([k, v]) => `${PARAM_LABEL[k] ?? k}: ${typeof v === 'boolean' ? (v ? 'sì' : 'no') : v}`)
-                            .join(' · ')}
-                        </p>
+                        <details className="mt-1 text-xs" open={mode === 'tecnica'}>
+                          <summary className="cursor-pointer font-semibold text-petrol-700">Modifica parametri</summary>
+                          <p className="mt-1 text-sand-600">{Object.entries(i.params).map(([k, v]) => `${PARAM_LABEL[k] ?? k}: ${typeof v === 'boolean' ? (v ? 'sì' : 'no') : v}`).join(' · ')}</p>
+                        </details>
                       </div>
                       {perms.canEdit && scenario.combines.length === 0 && (
                         <button type="button" className="btn-ghost text-alert-800" onClick={() => removeIntervention(i.id)}>
@@ -582,6 +545,9 @@ export default function UrbanLabPage() {
                     <Field label="Etichetta" htmlFor="ilabel">
                       <input id="ilabel" className="input" value={iLabel} onChange={(e) => setILabel(e.target.value)} placeholder={INTERVENTION_LABEL[iType]} />
                     </Field>
+                    <details className="sm:col-span-2" open={mode === 'tecnica'}>
+                      <summary className="cursor-pointer text-sm font-semibold text-petrol-700">Modifica parametri</summary>
+                      <div className="mt-2 grid gap-3 sm:grid-cols-2">
                     {Object.entries(iParams).map(([k, v]) => {
                       const id = `ip-${k}`;
                       if (typeof v === 'boolean')
@@ -616,6 +582,8 @@ export default function UrbanLabPage() {
                         </Field>
                       );
                     })}
+                      </div>
+                    </details>
                   </div>
                   <button type="button" className="btn-secondary" onClick={() => setPlacing(true)} disabled={placing}>
                     {INTERVENTION_GEOMETRY[iType] === 'points' ? 'Posiziona i punti sulla mappa' : 'Disegna il poligono sulla mappa'}
@@ -655,7 +623,7 @@ export default function UrbanLabPage() {
             <Section
               id="u7"
               step={7}
-              title="Calcolo trasparente"
+              title="RISULTATO SINTETICO"
               aside={
                 perms.canEdit && (
                 <div className="flex flex-wrap gap-2">
@@ -690,20 +658,33 @@ export default function UrbanLabPage() {
                       {n}
                     </Alert>
                   ))}
-                  {run.outputs.length > 0 && (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {run.outputs.map((o) => (
+                  {airReduction && (
+                    <div className="rounded-lg bg-petrol-100 p-3 text-petrol-900" data-testid="scenario-summary">
+                      <p className="font-semibold">Con lo scenario {scenario.label}, la temperatura dell’aria potrebbe ridursi di circa {formatNumber(Math.abs(airReduction.value!), airReduction.unit)} rispetto al periodo storico selezionato.</p>
+                      <p className="mt-1 text-sm">Stima illustrativa: il risultato deve essere verificato da un tecnico.</p>
+                    </div>
+                  )}
+                  {mainOutputs.length > 0 && (
+                    <div className="grid gap-3 sm:grid-cols-2" data-testid="scenario-main-results">
+                      {mainOutputs.map((o) => (
                         <div key={o.key} className="rounded-lg border border-sand-200 p-3">
                           <p className="text-sm font-semibold">{o.label}</p>
                           <div className="mt-1">
                             <DataBadge value={o} />
                           </div>
-                          {o.missingReason && <p className="mt-1 text-xs text-sand-600">{o.missingReason}</p>}
                         </div>
                       ))}
                     </div>
                   )}
-                  <p className="text-xs text-sand-600">
+                  {missingOutputs.length > 0 && (
+                    <Alert tone="info">
+                      <p>Alcuni indicatori non sono disponibili perché mancano misure della temperatura superficiale e del comfort termico.</p>
+                      <details className="mt-1 text-xs"><summary className="cursor-pointer font-semibold">Vedi dati mancanti</summary><ul className="mt-1 list-disc pl-5">{missingOutputs.map((o) => <li key={o.key}>{o.label}: {o.missingReason}</li>)}</ul></details>
+                    </Alert>
+                  )}
+                  <details open={mode === 'tecnica'} data-testid="scenario-technical">
+                    <summary className="cursor-pointer text-sm font-semibold text-petrol-700">Approfondimento tecnico</summary>
+                  <p className="mt-2 text-xs text-sand-600">
                     {mode === 'tecnica' && (
                       <>
                         Modello {run.modelRef} · costi {run.costModelRef} · input <code>{run.inputHash.slice(0, 12)}…</code> · output <code>{run.outputHash ? `${run.outputHash.slice(0, 12)}…` : '—'}</code> ·{' '}
@@ -711,7 +692,7 @@ export default function UrbanLabPage() {
                     )}
                     Calcolato il {new Date(run.computedAt).toLocaleString('it-IT', { timeZone: 'Europe/Rome' })}. Stesso input → stesso output: il calcolo è deterministico{mode === 'tecnica' ? '.' : ' (modello, versioni e impronte nella modalità tecnica).'}
                   </p>
-                  <details open={mode === 'tecnica'}>
+                  <details className="mt-2" open={mode === 'tecnica'}>
                     <summary className="cursor-pointer text-sm font-semibold text-petrol-700">Come è calcolato</summary>
                     <p className="mt-2 text-sm">
                       L’area è divisa in celle; per ogni cella si stimano le quote coperte da ombra, verde, materiali e nebulizzazione. Ogni copertura riduce la temperatura secondo coefficienti
@@ -722,6 +703,7 @@ export default function UrbanLabPage() {
                       </Link>
                       .
                     </p>
+                  </details>
                   </details>
                 </>
               )}
