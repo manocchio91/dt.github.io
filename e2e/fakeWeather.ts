@@ -17,6 +17,15 @@ export interface WeatherState {
   history: Record<string, Record<string, unknown>>;
 }
 
+/** Storico simulato di 7 giorni (168 ore) prima dell'emissione, come dopo il recupero iniziale del server. */
+function pastHours(issued: string): Record<string, unknown>[] {
+  const H = 3_600_000;
+  return Array.from({ length: 168 }, (_, i) => new Date(Date.parse(issued) - (168 - i) * H).toISOString()).flatMap((t, i) => [
+    { location_id: WEATHER_LOC, observed_at: t, variable: 'temperature_2m', value: 12 + 6 * Math.sin((2 * Math.PI * (i - 9)) / 24), unit: '°C', source: 'open_meteo', quality_flag: 'modellato' },
+    { location_id: WEATHER_LOC, observed_at: t, variable: 'relative_humidity_2m', value: 75 - 15 * Math.sin((2 * Math.PI * (i - 9)) / 24), unit: '%', source: 'open_meteo', quality_flag: 'modellato' },
+  ]);
+}
+
 /** Stato dello storico come lo calcola il server (migrazioni 0012–0013). */
 export function historyStatus(over: Record<string, unknown> = {}): Record<string, unknown> {
   const last = new Date(Date.parse(issuedHour(new Date())) - 3_600_000).toISOString();
@@ -68,7 +77,7 @@ export function initialWeatherState(projectId: string, organizationId: string): 
       },
     ],
     points,
-    observations: [],
+    observations: pastHours(issued),
     invokes: [],
     history: { [WEATHER_LOC]: historyStatus() },
   };
