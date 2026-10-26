@@ -1,0 +1,39 @@
+services:
+  - type: web
+    runtime: static
+    name: micro-digital-twin-preview
+    branch: feat/render-preview
+    autoDeployTrigger: off
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./apps/web/dist
+    envVars:
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  - type: web
+    runtime: docker
+    name: micro-digital-twin-timestral
+    branch: feat/render-preview
+    plan: free
+    autoDeployTrigger: off
+    dockerfilePath: ./services/forecasting/Dockerfile
+    dockerContext: ./services/forecasting
+    dockerCommand: sh -c 'exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-10000}" --workers 1 --timeout-graceful-shutdown 20'
+    healthCheckPath: /health
+    envVars:
+      - key: FORECAST_SERVICE_TOKEN
+        sync: false
+      - key: FORECAST_MODELS
+        value: mistralai/Timestral-5M
+      - key: FORECAST_MAX_CONCURRENCY
+        value: "1"
+      - key: HF_HOME
+        value: /models
+      - key: HF_HUB_DISABLE_TELEMETRY
+        value: "1"
