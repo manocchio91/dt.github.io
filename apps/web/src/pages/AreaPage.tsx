@@ -17,6 +17,7 @@ import { Alert, Field, Section, Term } from '../components/ui';
 import { ProjectMissing, useProject } from '../state/useProject';
 import { todayRome } from '../state/store';
 import { usePermissions } from '../state/permissions';
+import { useWorkMode } from '../state/preferences';
 import { parseCoordinates, PathGuide } from '../components/guide';
 
 
@@ -32,6 +33,7 @@ export default function AreaPage() {
 
   const validation = useMemo(() => (draft ? validateAoi(draft) : null), [draft]);
   const { canEdit } = usePermissions();
+  const technical = useWorkMode() === 'tecnica';
   if (!bundle) return <ProjectMissing ready={ready} />;
   const isAgri = bundle.project.sector === 'agriculture';
   const area = bundle.area;
@@ -170,25 +172,26 @@ export default function AreaPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Section title={isAgri ? 'Parcella' : 'Area'}>
           {area ? (
+            <div className="space-y-2">
             <dl className="grid grid-cols-[9rem_1fr] gap-y-1 text-sm">
               <dt className="font-semibold text-sand-600">Nome</dt>
               <dd>{area.name}</dd>
               <dt className="font-semibold text-sand-600">Superficie</dt>
-              <dd>
-                {formatArea(area.areaM2)} ({Math.round(area.areaM2).toLocaleString('it-IT')} m², calcolo geodetico)
-              </dd>
-              <dt className="font-semibold text-sand-600">
-                <Term k="crs">CRS</Term>
-              </dt>
-              <dd>{area.crs} (WGS84)</dd>
-              <dt className="font-semibold text-sand-600">Vertici</dt>
-              <dd>{(area.geometry.coordinates[0]?.length ?? 1) - 1}</dd>
-              <dt className="font-semibold text-sand-600">Origine</dt>
-              <dd>{area.source}</dd>
+              <dd>{formatArea(area.areaM2)}</dd>
               {area.isDemonstrativeGeometry && (
                 <dd className="col-span-2 font-semibold text-ochre-800">Geometria dimostrativa approssimata: non è un rilievo ufficiale.</dd>
               )}
             </dl>
+            <details open={technical}>
+              <summary className="cursor-pointer text-sm font-semibold text-petrol-700">Dettagli tecnici</summary>
+              <dl className="mt-2 grid grid-cols-[9rem_1fr] gap-y-1 text-sm">
+                <dt className="font-semibold text-sand-600"><Term k="crs">CRS</Term></dt><dd>{area.crs} (WGS84)</dd>
+                <dt className="font-semibold text-sand-600">Vertici</dt><dd>{(area.geometry.coordinates[0]?.length ?? 1) - 1}</dd>
+                <dt className="font-semibold text-sand-600">Origine</dt><dd>{area.source}</dd>
+                <dt className="font-semibold text-sand-600">Calcolo superficie</dt><dd>{Math.round(area.areaM2).toLocaleString('it-IT')} m², geodetico</dd>
+              </dl>
+            </details>
+            </div>
           ) : (
             <p className="text-sm">Nessuna area salvata. Disegnala sulla mappa, importa un GeoJSON o inserisci le coordinate.</p>
           )}

@@ -15,6 +15,7 @@ export function Layout() {
   const [reloading, setReloading] = useState(false);
   const { current, session, client } = useAuth();
   const { preferences } = usePreferences();
+  const guided = (preferences?.mode ?? 'guidata') === 'guidata';
   const match = useMatch('/progetti/:id/*');
   const pid = match?.params.id ?? lastProjectId() ?? undefined;
   const project = get(pid);
@@ -65,39 +66,35 @@ export function Layout() {
                 <p className="truncate px-2 pb-1 text-xs font-bold text-sand-600" title={project.project.name}>
                   {project.project.name}
                 </p>
+                <p className="px-2 pt-1 text-[0.7rem] font-bold tracking-wide text-sand-600 uppercase">Progetto</p>
                 <NavLink to={`/progetti/${project.project.id}/area`} className={linkCls}>
                   {sector === 'urban' ? 'Area' : 'Parcelle'}
                 </NavLink>
                 <NavLink to={labPath} className={linkCls}>
-                  Decision Lab
-                </NavLink>
-                <NavLink to={`/progetti/${project.project.id}/previsioni`} className={linkCls}>
-                  Previsioni
+                  Analisi
                 </NavLink>
                 {sector === 'urban' && (
                   <NavLink to={`/progetti/${project.project.id}/confronto`} className={linkCls}>
-                    Confronto e decisione
+                    Confronto
                   </NavLink>
                 )}
                 {sector === 'urban' && (
                   <NavLink to={`/progetti/${project.project.id}/verifica`} className={linkCls}>
-                    Verifica ex-post
+                    Decisioni e verifica
                   </NavLink>
                 )}
                 <NavLink to={`/progetti/${project.project.id}/documenti`} className={linkCls}>
-                  Foto e documenti
+                  Allegati e prove
                 </NavLink>
+                {!guided && <NavLink to={`/progetti/${project.project.id}/previsioni`} className={linkCls}>Previsioni</NavLink>}
               </div>
             )}
-            <NavLink to="/metodo" className={linkCls}>
-              Fonti e metodo
-            </NavLink>
-            <NavLink to="/stato" className={linkCls}>
-              Stato funzioni
-            </NavLink>
-            <NavLink to="/limiti" className={linkCls}>
-              Limiti e responsabilità
-            </NavLink>
+            <details open={!guided} className="rounded-lg border border-sand-200 bg-white p-2">
+              <summary className="cursor-pointer px-2 py-2 text-sm font-bold text-petrol-900">Informazioni</summary>
+              <NavLink to="/metodo" className={linkCls}>Fonti e metodo</NavLink>
+              <NavLink to="/limiti" className={linkCls}>Limiti e responsabilità</NavLink>
+              <NavLink to="/stato" className={linkCls}>Stato del prototipo</NavLink>
+            </details>
             <NavLink to="/accesso" className={linkCls}>
               Accesso e organizzazione
             </NavLink>
@@ -156,9 +153,11 @@ export function Layout() {
         {[
           { to: '/', label: 'Home', icon: '⌂', end: true },
           { to: '/progetti', label: 'Progetti', icon: '▤', end: true },
-          { to: labPath, label: 'Lab', icon: '◎', end: false },
-          { to: project && sector === 'urban' ? `/progetti/${project.project.id}/confronto` : '/metodo', label: project && sector === 'urban' ? 'Confronto' : 'Metodo', icon: '⇄', end: false },
-          { to: '/stato', label: 'Stato', icon: '✓', end: false },
+          { to: project ? `/progetti/${project.project.id}/area` : '/progetti', label: sector === 'agriculture' ? 'Parcella' : 'Area', icon: '◇', end: false },
+          { to: labPath, label: 'Analisi', icon: '◎', end: false },
+          guided
+            ? { to: project && sector === 'urban' ? `/progetti/${project.project.id}/confronto` : labPath, label: 'Confronto', icon: '⇄', end: false }
+            : { to: '/metodo', label: 'Tecnica', icon: 'ℹ', end: false },
         ].map((l) => (
           <NavLink
             key={l.label}

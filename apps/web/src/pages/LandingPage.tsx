@@ -15,12 +15,20 @@ const STEPS = [
   ['Verifica ex-post', 'previsto contro osservato'],
 ];
 
+const GUIDED_STEPS = [
+  ['Scegli l’area', 'definisci lo spazio urbano o la parcella'],
+  ['Analizza la criticità', 'leggi dati, qualità e zone da controllare'],
+  ['Prova le alternative', 'simula o valuta soltanto le opzioni supportate'],
+  ['Confronta e decidi', 'registra una scelta motivata e verificabile'],
+];
+
 export function LandingPage() {
   const { openDemo, ready } = useStore();
   const nav = useNavigate();
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const { preferences } = usePreferences();
+  const guided = (preferences?.mode ?? 'guidata') === 'guidata';
 
   const go = async (kind: 'urban' | 'agriculture') => {
     setBusy(kind);
@@ -96,9 +104,9 @@ export function LandingPage() {
       </section>
 
       <section className="card">
-        <h2 className="h-section">Come funziona</h2>
+        <h2 className="h-section">{guided ? 'Il percorso in quattro passi' : 'Pipeline completa'}</h2>
         <ol className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map(([t, d], i) => (
+          {(guided ? GUIDED_STEPS : STEPS).map(([t, d], i) => (
             <li key={t} className="flex gap-3 rounded-lg bg-sand-100 p-3">
               <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-petrol-700 text-sm font-bold text-white">{i + 1}</span>
               <span>
@@ -110,10 +118,8 @@ export function LandingPage() {
         </ol>
       </section>
 
-      <section className="card border-l-4 border-l-ochre-500" aria-labelledby="maturita">
-        <h2 id="maturita" className="h-section">
-          Livello di maturità
-        </h2>
+      <details className="card border-l-4 border-l-ochre-500" open={!guided}>
+        <summary id="maturita" className="cursor-pointer font-bold text-petrol-900">Informazioni tecniche, maturità e limiti</summary>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
           <li>
             <strong>Modalità Demo</strong> attiva: dati aperti o dimostrativi e modelli <em>illustrativi</em>. Ogni risultato è marcato SIMULATO e mostra un <em>intervallo illustrativo</em>.
@@ -131,7 +137,7 @@ export function LandingPage() {
             Limiti e responsabilità
           </Link>
         </p>
-      </section>
+      </details>
     </div>
   );
 }
